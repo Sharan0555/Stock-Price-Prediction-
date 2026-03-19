@@ -1,3 +1,20 @@
+import hashlib, json, time
+
+_cache: dict = {}
+
+def _cache_get(key: str):
+    entry = _cache.get(key)
+    if entry is None:
+        return None
+    value, expires_at = entry
+    if time.time() > expires_at:
+        del _cache[key]
+        return None
+    return value
+
+def _cache_set(key: str, value, ttl: int = 300):
+    _cache[key] = (value, time.time() + ttl)
+
 from typing import List, Literal
 
 from fastapi import APIRouter, Body, HTTPException
@@ -64,13 +81,23 @@ def _compute_risk_and_signal(closes: List[float], predicted: float) -> RiskInfo:
 
 @router.post("")
 def predict_price(body: PredictionRequestBody = Body(...)) -> dict:
+    cache_key = hashlib.md5(
+        json.dumps({"s": body.symbol.upper(), "c": body.closes[-10:]}, sort_keys=True).encode()
+    ).hexdigest()
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        cached["cached"] = True
+        return cached
     try:
         result = prediction_engine.predict_next_price(body.closes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     risk = _compute_risk_and_signal(body.closes, result["ensemble"])
-    return {
+    response = {
         "symbol": body.symbol.upper(),
         "predictions": result,
         "risk": risk.model_dump(),
+        "cached": False,
     }
+    _cache_set(cache_key, response, ttl=300)
+    return response

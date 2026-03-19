@@ -10,12 +10,28 @@ from app.db.mongo import mongo_db
 from app.services.finnhub_service import FinnhubService
 from app.services.alpha_vantage_service import AlphaVantageService
 from app.services.local_data_service import LocalDataService
+from app.services.yfinance_service import YFinanceService
+
+import time as _time
+_cache: dict = {}
+
+def _cache_get(key: str, ttl: int):
+    entry = _cache.get(key)
+    if entry and _time.time() < entry[1]:
+        return entry[0]
+    return None
+
+def _cache_set(key: str, value, ttl: int):
+    _cache[key] = (value, _time.time() + ttl)
+
+
 
 
 router = APIRouter()
 _finnhub_service = FinnhubService()
 _alpha_service = AlphaVantageService()
 _local_data_service = LocalDataService()
+_yfinance_service = YFinanceService()
 
 US_TOP_50 = [
     {
@@ -929,7 +945,7 @@ def _looks_like_inr_symbol(symbol: str) -> bool:
     sym = symbol.upper()
     if sym in INR_SYMBOLS:
         return True
-    return sym.endswith(".NS") or sym.endswith(".NSE") or sym.endswith(".BSE")
+    return sym.endswith(".NS") or sym.endswith(".NSE") or sym.endswith(".BSE") or sym.endswith(".BO")
 
 def _alpha_candidates(symbol: str) -> list[str]:
     sym = symbol.upper()
@@ -961,6 +977,9 @@ def get_alpha_vantage_service() -> AlphaVantageService:
 def get_local_data_service() -> LocalDataService:
     return _local_data_service
 
+def get_yfinance_service() -> YFinanceService:
+    return _yfinance_service
+
 def _store_history(symbol: str, series: list[dict], source: str) -> None:
     if not series:
         return
@@ -987,7 +1006,7 @@ def _store_history(symbol: str, series: list[dict], source: str) -> None:
 
 
 @router.get("/search")
-def search_stocks(
+async def search_stocks(
     q: str = Query(..., min_length=1),
     service: FinnhubService = Depends(get_finnhub_service),
 ) -> dict:
@@ -1002,14 +1021,14 @@ def search_stocks(
         ]
         return {"query": q, "results": results}
     try:
-        results = service.search_symbol(q)
+        results = await service.search_symbol(q)
         return {"query": q, "results": results}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Finnhub error: {e}") from e
 
 
 @router.get("/symbols")
-def list_symbols(
+async def list_symbols(
     exchange: str = Query("US", min_length=1, max_length=12),
     limit: int = Query(1000, ge=1, le=1000),
     offset: int = Query(0, ge=0, le=200000),
@@ -1059,7 +1078,7 @@ def list_symbols(
         }
 
     try:
-        symbols = service.list_symbols(exchange=exchange.upper())
+        symbols = await service.list_symbols(exchange=exchange.upper())
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Finnhub error: {e}") from e
 
@@ -1084,7 +1103,7 @@ def list_symbols(
 
 
 @router.get("/fx/inr")
-def get_inr_exchange_rate(
+async def get_inr_exchange_rate(
     base: str = Query("USD", min_length=3, max_length=5),
     alpha: AlphaVantageService = Depends(get_alpha_vantage_service),
 ) -> dict:
@@ -1107,12 +1126,13 @@ def get_inr_exchange_rate(
 
 
 @router.get("/{symbol}/quote")
-def get_realtime_price(
+async def get_realtime_price(
     symbol: str,
     allow_local: bool = Query(True),
     service: FinnhubService = Depends(get_finnhub_service),
     alpha: AlphaVantageService = Depends(get_alpha_vantage_service),
     local_data: LocalDataService = Depends(get_local_data_service),
+    yfinance: YFinanceService = Depends(get_yfinance_service),
 ) -> dict:
     sym = symbol.upper()
     is_inr = _looks_like_inr_symbol(sym)
@@ -1137,6 +1157,13 @@ def get_realtime_price(
                     raise HTTPException(
                         status_code=502, detail=f"Alpha Vantage error: {exc}"
                     ) from exc
+        try:
+            yf_quote = await yfinance.get_quote(sym, is_inr=True)
+            if yf_quote and yf_quote.get("c"):
+                return {"symbol": sym, "quote": yf_quote, "source": "yfinance"}
+        except Exception:
+            pass
+
         if not allow_local:
             raise HTTPException(
                 status_code=502,
@@ -1145,20 +1172,37 @@ def get_realtime_price(
         quote = local_data.get_quote(sym, currency)
         return {"symbol": sym, "quote": quote, "source": "local"}
 
+    _ck = f"quote:{sym}"
+    _cv = _cache_get(_ck, 30)
+    if _cv is not None:
+        return _cv
     if settings.FINNHUB_API_KEY:
         try:
-            quote = service.get_realtime_quote(sym)
+            quote = await service.get_realtime_quote(sym)
+            _cache_set(
+                f"quote:{sym}",
+                {"symbol": sym, "quote": quote, "source": "finnhub"},
+                30,
+            )
             return {"symbol": sym, "quote": quote, "source": "finnhub"}
         except Exception as exc:
             if not allow_local:
                 raise HTTPException(
-                    status_code=502, detail=f"Finnhub error: {exc}"
+                    status_code=502,
+                    detail=f"Finnhub error: {exc}",
                 ) from exc
     elif not allow_local:
         raise HTTPException(
             status_code=502,
             detail="FINNHUB_API_KEY is not set and local fallback disabled.",
         )
+
+    try:
+        yf_quote = await yfinance.get_quote(sym, is_inr=False)
+        if yf_quote and yf_quote.get("c"):
+            return {"symbol": sym, "quote": yf_quote, "source": "yfinance"}
+    except Exception:
+        pass
 
     if not allow_local:
         raise HTTPException(
@@ -1169,13 +1213,36 @@ def get_realtime_price(
     return {"symbol": sym, "quote": quote, "source": "local"}
 
 
+@router.get("/{symbol}/info")
+async def get_company_info(
+    symbol: str,
+    yfinance: YFinanceService = Depends(get_yfinance_service),
+) -> dict:
+    sym = symbol.upper()
+    is_inr = _looks_like_inr_symbol(sym)
+    _ck = f"info:{sym}"
+    _cached = _cache_get(_ck, 3600)
+    if _cached is not None:
+        return _cached
+    try:
+        info = await yfinance.get_company_info(sym, is_inr=is_inr)
+        if not info:
+            raise HTTPException(status_code=404, detail=f"No company info for {sym}")
+        return {"symbol": sym, "source": "yfinance", "info": info}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"YFinance error: {exc}") from exc
+
+
 @router.get("/{symbol}/history")
-def get_history(
+async def get_history(
     symbol: str,
     days: int = Query(90, ge=1, le=3650),
     resolution: str = Query("D"),
     allow_local: bool = Query(True),
     service: FinnhubService = Depends(get_finnhub_service),
+    yfinance: YFinanceService = Depends(get_yfinance_service),
     alpha: AlphaVantageService = Depends(get_alpha_vantage_service),
     local_data: LocalDataService = Depends(get_local_data_service),
 ) -> dict:
@@ -1183,8 +1250,10 @@ def get_history(
     Returns historical close prices.
     Source preference:
     - MongoDB (if data exists)
+    - yfinance daily history (no API key)
     - Finnhub candles (if API key configured)
-    - fallback: empty list
+    - Alpha Vantage fallback (if configured)
+    - Local fallback (if allow_local)
     """
     sym = symbol.upper()
     is_inr = _looks_like_inr_symbol(sym)
@@ -1214,12 +1283,31 @@ def get_history(
                 status_code=503,
                 detail="Local-only mode is enabled; live data is unavailable.",
             )
-        currency = "INR" if sym in INR_SYMBOLS else "USD"
+        currency = "INR" if is_inr else "USD"
         series = local_data.get_series(sym, currency, days)
         _store_history(sym, series, "local")
         return {"symbol": sym, "source": "local", "series": series}
 
-    # 2) Alpha Vantage daily series for INR symbols
+    _hk = f"hist:{sym}:{days}"
+    _hv = _cache_get(_hk, 300)
+    if _hv is not None:
+        return _hv
+
+    # 2) yfinance daily series (no API key needed)
+    if resolution.upper() == "D":
+        try:
+            series = await yfinance.get_daily_series(sym, days, is_inr=is_inr)
+            if series:
+                if days and len(series) > days:
+                    series = series[-days:]
+                _store_history(sym, series, "yfinance")
+                _cache_set(f"hist:{sym}:{days}", {"symbol": sym, "source": "yfinance", "series": series}, 300)
+                return {"symbol": sym, "source": "yfinance", "series": series}
+        except Exception:
+            # Fall through to other sources if yfinance fails.
+            pass
+
+    # 3) Alpha Vantage daily series for INR symbols
     if is_inr:
         if settings.ALPHAVANTAGE_API_KEY:
             try:
@@ -1228,7 +1316,7 @@ def get_history(
                 last_error: Exception | None = None
                 for candidate in candidates:
                     try:
-                        series = alpha.get_daily_series(candidate)
+                        series = await alpha.get_daily_series(candidate)
                         if series:
                             break
                     except Exception as exc:
@@ -1258,7 +1346,7 @@ def get_history(
         _store_history(sym, series, "local")
         return {"symbol": sym, "source": "local", "series": series}
 
-    # 3) Finnhub candles
+    # 4) Finnhub candles
     now = datetime.now(timezone.utc)
     start = now - timedelta(days=days)
     from_unix = int(start.timestamp())
@@ -1266,7 +1354,7 @@ def get_history(
 
     if settings.FINNHUB_API_KEY:
         try:
-            data = service.get_candles(sym, resolution, from_unix, to_unix)
+            data = await service.get_candles(sym, resolution, from_unix, to_unix)
             if data.get("s") == "ok" and data.get("t") and data.get("c"):
                 series = [{"t": int(t), "c": float(c)} for t, c in zip(data["t"], data["c"])]
                 _store_history(sym, series, "finnhub")
@@ -1282,10 +1370,10 @@ def get_history(
             detail="FINNHUB_API_KEY is not set and local fallback disabled.",
         )
 
-    # 4) Alpha Vantage fallback for non-INR symbols
+    # 5) Alpha Vantage fallback for non-INR symbols
     if settings.ALPHAVANTAGE_API_KEY:
         try:
-            series = alpha.get_daily_series(sym)
+            series = await alpha.get_daily_series(sym)
             if series:
                 if days and len(series) > days:
                     series = series[-days:]

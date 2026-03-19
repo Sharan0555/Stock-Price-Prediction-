@@ -5,6 +5,7 @@ psycopg2-binary
 pymongo
 redis
 httpx
+yfinance>=0.2.40
 python-jose[cryptography]
 passlib[bcrypt]
 pydantic
