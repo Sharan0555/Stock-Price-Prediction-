@@ -12,6 +12,36 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 
 class YFinanceService:
+    def _normalize_volume(self, value) -> int:
+        try:
+            return int(float(value)) if value is not None else 0
+        except (TypeError, ValueError):
+            return 0
+
+    def _extract_volume(self, ticker: yf.Ticker, *, latest_volume=None) -> int:
+        if latest_volume is not None:
+            normalized = self._normalize_volume(latest_volume)
+            if normalized > 0:
+                return normalized
+
+        fast_info = getattr(ticker, "fast_info", None)
+        if fast_info:
+            for key in ("three_month_average_volume", "last_volume", "regular_market_volume"):
+                value = getattr(fast_info, key, None)
+                if value is None and isinstance(fast_info, dict):
+                    value = fast_info.get(key)
+                normalized = self._normalize_volume(value)
+                if normalized > 0:
+                    return normalized
+
+        info = ticker.info or {}
+        for key in ("volume", "averageVolume", "averageDailyVolume10Day", "threeMonthAverageVolume"):
+            normalized = self._normalize_volume(info.get(key))
+            if normalized > 0:
+                return normalized
+
+        return 0
+
     def _is_market_open(self, *, is_inr: bool) -> bool:
         zone = pytz.timezone("Asia/Kolkata" if is_inr else "America/New_York")
         now = datetime.now(zone)
@@ -129,6 +159,12 @@ class YFinanceService:
                     "l": low_price,
                     "o": open_price,
                     "pc": prev_close,
+                    "v": self._extract_volume(
+                        ticker,
+                        latest_volume=intraday["Volume"].iloc[-1]
+                        if "Volume" in intraday
+                        else None,
+                    ),
                     "t": int(self._to_timestamp(intraday.index[-1])),
                 }
 
@@ -149,6 +185,10 @@ class YFinanceService:
                 "l": round(float(latest["Low"]), 2),
                 "o": round(float(latest["Open"]), 2),
                 "pc": prev_close,
+                "v": self._extract_volume(
+                    ticker,
+                    latest_volume=latest.get("Volume"),
+                ),
                 "t": int(self._to_timestamp(daily.index[-1])),
             }
 
@@ -164,6 +204,7 @@ class YFinanceService:
             "l": round(float(info.get("dayLow", 0.0) or 0.0), 2),
             "o": round(float(info.get("open", 0.0) or 0.0), 2),
             "pc": round(float(info.get("previousClose", 0.0) or 0.0), 2),
+            "v": self._extract_volume(ticker, latest_volume=info.get("volume")),
             "t": int(datetime.now(timezone.utc).timestamp()),
         }
 

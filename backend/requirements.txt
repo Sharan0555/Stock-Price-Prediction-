@@ -4,7 +4,9 @@ sqlalchemy
 psycopg2-binary
 pymongo
 redis
+aioredis>=2.0.1
 httpx>=0.27.0
+finnhub-python>=2.4.20
 feedparser>=6.0.10
 yfinance>=0.2.40
 python-jose[cryptography]
@@ -18,3 +20,4 @@ pytest
 google-auth
 pytz>=2024.1
 websockets>=12.0
+certifi

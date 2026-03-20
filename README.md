@@ -30,7 +30,7 @@ This repository is designed as a **professional, production‑ready template** f
 | **Frontend**  | Next.js, React, TypeScript, modern UI/UX   |
 | **Backend**   | FastAPI, Python, ML (e.g. LSTM)             |
 | **Data**      | Finnhub, Alpha Vantage, local JSON fallback |
-| **Infra/Tooling** | Docker, docker-compose, Nginx, Makefile |
+| **Infra/Tooling** | Native services, PostgreSQL, MongoDB (Redis optional) |
 
 ---
 
@@ -45,9 +45,9 @@ This repository is designed as a **professional, production‑ready template** f
 - **Full-stack app**
   - API server (FastAPI) with typed routes and OpenAPI docs
   - Next.js UI for viewing prices, predictions, and portfolio
-- **Dockerized setup**
-  - Single command to run the entire stack
-  - Nginx reverse proxy / gateway
+- **Native development setup**
+  - Simple scripts to start all services
+  - Next.js proxy handles API routing without Nginx
 
 ---
 
@@ -77,10 +77,9 @@ This repository is designed as a **professional, production‑ready template** f
 .
 ├── backend/           # FastAPI app, ML models, services
 ├── frontend/          # Next.js web UI
-├── nginx/             # Nginx config and gateway
 ├── data/              # Sample/local data (non-sensitive)
-├── docker-compose.yml # Orchestration for all services
-├── Makefile           # Helpful dev/ops commands
+├── start.sh           # Start all services
+├── stop.sh            # Stop all services
 └── README.md
 ```
 
@@ -88,79 +87,47 @@ This repository is designed as a **professional, production‑ready template** f
 
 ### Prerequisites
 
-- **Docker Desktop** (or compatible Docker engine)
-- **Make** (optional but recommended)
+- **Python 3.11+** and **Node.js 18+**
+- **PostgreSQL** and **MongoDB** (Redis optional - has in-memory fallback)
 - **API keys**:
   - Finnhub API key
   - Alpha Vantage API key
 
 ---
 
-### Quick Start (Docker)
+### Quick Start (No Docker)
 
-1. **Clone the repository**
+Prerequisites: Python 3.11+, Node.js 18+, PostgreSQL, MongoDB (Redis optional)
+
+1. **Clone the repo**
 
 ```bash
 git clone https://github.com/Sharan0555/Stock-Price-Prediction.git
 cd Stock-Price-Prediction
 ```
 
-2. **Create a `.env` file in the project root**
+2. **Copy .env.example to .env and fill in API keys**
 
 ```bash
 cp .env.example .env
+# Edit .env and add your FINNHUB_API_KEY and ALPHAVANTAGE_API_KEY
 ```
 
-3. **Configure environment variables**
-
-Edit `.env` and set at least:
-
-```text
-FINNHUB_API_KEY=your_finnhub_key_here
-ALPHAVANTAGE_API_KEY=your_alphavantage_key_here
-```
-
-4. **Start the full stack**
-
-Using Docker directly:
+3. **Run database setup**
 
 ```bash
-docker compose up --build
+bash backend/setup_db.sh
 ```
 
-Or with `make`:
+4. **Start everything**
 
 ```bash
-make up
+bash start.sh
 ```
 
----
+5. **Open http://localhost:3000**
 
-### Faster Startup After First Build
-
-Once images are built successfully, you can start without rebuilding:
-
-```bash
-make up-fast
-```
-
-Run in background (detached):
-
-```bash
-make up-d
-```
-
-To stop containers:
-
-```bash
-docker compose down
-```
-
-Or:
-
-```bash
-make down
-```
+**Stop everything**: `bash stop.sh`
 
 ---
 
@@ -168,36 +135,34 @@ make down
 
 Once the stack is running:
 
-- **Gateway / Web app**: `http://127.0.0.1`
-- **Backend docs (via gateway)**: `http://127.0.0.1/api/docs`
-- **Example FX endpoint (via gateway)**:  
-  `http://127.0.0.1/api/v1/stocks/fx/inr?base=USD`
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8001
+- **API Docs**: http://localhost:8001/api/docs
+- **Example endpoint**: http://localhost:8001/api/v1/stocks/fx/inr?base=USD
 
 ---
 
-### Local Development (Optional)
+### Local Development (Manual)
 
-If you prefer to run services locally without Docker:
+If you prefer to run services individually:
 
-- **Backend** (example flow):
+- **Backend**:
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-- **Frontend** (example flow):
+- **Frontend**:
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-Then visit `http://localhost:3000`.
 
 ---
 

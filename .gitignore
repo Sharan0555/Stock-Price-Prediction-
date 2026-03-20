@@ -4,11 +4,15 @@
 .venv/
 venv/
 __pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
 *.py[cod]
 .mypy_cache/
 .pytest_cache/
 
 node_modules/
+.next/
 dist/
 build/
 npm-debug.log*
@@ -19,10 +23,3 @@ yarn-error.log*
 .vscode/
 
 *.log
-
-__pycache__/
-*.pyc
-.venv/
-.next/
-node_modules/
-.env

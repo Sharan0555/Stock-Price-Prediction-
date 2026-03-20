@@ -1273,7 +1273,7 @@ async def get_history(
                 last_error: Exception | None = None
                 for candidate in candidates:
                     try:
-                        series = await alpha.get_daily_series(candidate)
+                        series = alpha.get_daily_series(candidate)
                         if series:
                             break
                     except Exception as exc:
@@ -1330,7 +1330,7 @@ async def get_history(
     # 5) Alpha Vantage fallback for non-INR symbols
     if settings.ALPHAVANTAGE_API_KEY:
         try:
-            series = await alpha.get_daily_series(sym)
+            series = alpha.get_daily_series(sym)
             if series:
                 if days and len(series) > days:
                     series = series[-days:]
