@@ -8,6 +8,9 @@
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/frontend-Next.js-black)](https://nextjs.org/)
 [![Status](https://img.shields.io/badge/status-active-success)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Node.js 18+](https://img.shields.io/badge/node.js-18+-green.svg)](https://nodejs.org/)
 
 </div>
 
@@ -48,6 +51,28 @@ This repository is designed as a **professional, production‑ready template** f
 - **Native development setup**
   - Simple scripts to start all services
   - Next.js proxy handles API routing without Nginx
+
+---
+
+### Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │    Backend       │    │   ML Models     │    │  Data Sources   │
+│   (Next.js)     │◄──►│   (FastAPI)      │◄──►│   (LSTM, etc.)  │◄──►│  (Finnhub, AV)  │
+│                 │    │                  │    │                 │    │                 │
+│ • UI Components │    │ • REST APIs      │    │ • Prediction    │    │ • Market Data   │
+│ • Charts        │    │ • Data Processing│    │ • Training      │    │ • Historical    │
+│ • Real-time     │    │ • Validation     │    │ • Inference     │    │ • News Feed     │
+└─────────────────┘    └──────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+**Data Flow:**
+1. **Frontend** requests data from FastAPI backend
+2. **Backend** fetches market data from external APIs (Finnhub, Alpha Vantage)
+3. **ML Models** process historical data to generate predictions
+4. **Results** are cached and served back to frontend via REST APIs
+5. **Real-time updates** through periodic polling and WebSocket connections
 
 ---
 
@@ -106,7 +131,7 @@ Prerequisites: Python 3.11+, Node.js 18+, PostgreSQL, MongoDB (Redis optional)
 1. **Clone the repo**
 
 ```bash
-git clone https://github.com/Sharan0555/Stock-Price-Prediction.git
+git clone https://github.com/Sharan0555/Stock-Price-Prediction-.git
 cd Stock-Price-Prediction
 ```
 
@@ -132,6 +157,22 @@ bash start.sh
 5. **Open http://localhost:3000**
 
 **Stop everything**: `bash stop.sh`
+
+---
+
+### Known Limitations
+
+⚠️ **Educational Purpose Only**
+- **Not Financial Advice**: All predictions are for educational and demonstration purposes only
+- **Market Risks**: Real stock markets involve complex factors not captured by this model
+- **Historical Data**: Predictions based solely on historical price patterns may not reflect future performance
+- **No Guarantee**: Past performance does not guarantee future results
+
+**Technical Limitations:**
+- Model accuracy depends on quality and quantity of training data
+- Real-time market data may have delays or API rate limits
+- Predictions are generated using simplified LSTM models
+- No consideration of fundamental analysis, news sentiment, or economic indicators
 
 ---
 
@@ -181,6 +222,24 @@ pytest
 
 ---
 
+### Roadmap
+
+**Planned Features:**
+- 🔄 **Real-time WebSocket Updates** - Live price streaming without polling
+- 👤 **User Authentication** - Portfolio tracking and personalized predictions
+- 📊 **Advanced Charting** - Technical indicators and drawing tools
+- 🤖 **Enhanced ML Models** - Ensemble methods and sentiment analysis
+- 📱 **Mobile App** - React Native companion application
+- 🌐 **Multi-market Support** - International exchanges and currency pairs
+- 🔔 **Price Alerts** - Custom notifications for price movements
+- 📈 **Backtesting Engine** - Historical strategy testing
+- 🏦 **Broker Integration** - Real trading API connections
+- 📰 **News Sentiment Analysis** - NLP-based market sentiment scoring
+
+**Community Contributions Welcome!**
+
+---
+
 ### Contributing
 
 Contributions, issues, and feature requests are welcome!
@@ -195,6 +254,5 @@ Contributions, issues, and feature requests are welcome!
 
 ### License
 
-This project is currently **unlicensed**.  
-If you plan to make it open source, consider adding a license file (e.g. MIT) at the repository root.
+This project is licensed under the MIT License.
 
