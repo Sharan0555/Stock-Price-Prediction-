@@ -61,11 +61,15 @@ This repository is designed as a **professional, production‑ready template** f
 
 **Stock Search & Popular Stocks**
 
-![Stock search screen](docs/images/stock-search.png)
+![Stock search screen](docs/images/stocks-search.png)
 
 **Prediction Detail & Strategy**
 
-![Prediction detail screen](docs/images/prediction-detail.png)
+![Prediction detail screen](docs/images/stock-prediction.png)
+
+**Market News & Sentiment**
+
+![Market news screen](docs/images/market-news.png)
 
 </div>
 
