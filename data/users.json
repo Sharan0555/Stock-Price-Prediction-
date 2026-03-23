@@ -27,5 +27,9 @@
   "patilsharan630@gmail.com": {
     "email": "patilsharan630@gmail.com",
     "provider": "google"
+  },
+  "codex.temp.login@example.com": {
+    "email": "codex.temp.login@example.com",
+    "password_hash": "$pbkdf2-sha256$29000$ljIGoDRGSKlVCiFECCGktA$2KzLu8NUWNlMMTbyHJTAe5jvm/dlvRko0xHChw2p35g"
   }
 }

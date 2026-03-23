@@ -1,6 +1,7 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager, suppress
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -46,6 +47,31 @@ async def lifespan(app: FastAPI):
         await alpha_vantage_service.aclose()
 
 
+def _get_allowed_origins() -> list[str]:
+    configured = [str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS]
+    defaults = [
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ]
+
+    frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+    if frontend_url:
+        defaults.append(frontend_url)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for origin in [*defaults, *configured]:
+        if not origin or origin in seen:
+            continue
+        seen.add(origin)
+        deduped.append(origin)
+    return deduped
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="AI Stock Price Prediction API",
@@ -55,14 +81,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    origins = [
-        "http://localhost:3000",
-        "https://stock-prediction.vercel.app",
-        os.getenv("FRONTEND_URL", ""),
-    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=_get_allowed_origins(),
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

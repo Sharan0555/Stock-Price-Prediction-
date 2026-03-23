@@ -47,7 +47,13 @@ def _rsi(closes: np.ndarray, period: int = 14) -> np.ndarray:
     avg_gain[:period] = avg_gain[period]
     avg_loss[:period] = avg_loss[period]
 
-    rs = np.where(avg_loss == 0, 100.0, avg_gain / avg_loss)
+    # Avoid evaluating avg_gain/avg_loss where avg_loss==0 (numpy warns before np.where applies).
+    rs = np.divide(
+        avg_gain,
+        avg_loss,
+        out=np.full_like(avg_gain, 100.0, dtype=float),
+        where=(avg_loss != 0),
+    )
     return 100.0 - (100.0 / (1.0 + rs))
 
 

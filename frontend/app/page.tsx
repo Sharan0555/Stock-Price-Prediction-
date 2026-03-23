@@ -244,7 +244,7 @@ export default function Home() {
             Predict market trends using Machine Learning & Real-Time Data.
             Experience accurate predictions with live signals and actionable insights.
           </p>
-          <div className="flex flex-wrap gap-4 justify-center reveal delay-2">
+          <div className="hero-action-bar reveal delay-2" role="group" aria-label="Primary actions">
             <button
               onClick={() => router.push('/prediction')}
               className="btn-primary"
