@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import math
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo import UpdateOne
@@ -23,6 +24,49 @@ def _cache_get(key: str, ttl: int):
 
 def _cache_set(key: str, value, ttl: int):
     _cache[key] = (value, _time.time() + ttl)
+
+
+def _finite_float(value) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _sanitize_quote_payload(payload: dict | None) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    sanitized = dict(payload)
+    for key in ("c", "d", "dp", "h", "l", "o", "pc"):
+        sanitized[key] = _finite_float(sanitized.get(key))
+
+    for key in ("v", "t"):
+        value = sanitized.get(key)
+        try:
+            sanitized[key] = int(value) if value is not None else None
+        except (TypeError, ValueError):
+            sanitized[key] = None
+    return sanitized
+
+
+def _sanitize_series(series: list[dict] | None) -> list[dict]:
+    if not series:
+        return []
+    cleaned: list[dict] = []
+    for point in series:
+        if not isinstance(point, dict):
+            continue
+        try:
+            ts = int(point.get("t", 0))
+        except (TypeError, ValueError):
+            continue
+        close = _finite_float(point.get("c"))
+        if not ts or close is None:
+            continue
+        cleaned.append({"t": ts, "c": round(close, 2)})
+    cleaned.sort(key=lambda item: item["t"])
+    return cleaned
 
 
 
@@ -981,6 +1025,7 @@ def get_yfinance_service() -> YFinanceService:
     return _yfinance_service
 
 def _store_history(symbol: str, series: list[dict], source: str) -> None:
+    series = _sanitize_series(series)
     if not series:
         return
     try:
@@ -988,8 +1033,10 @@ def _store_history(symbol: str, series: list[dict], source: str) -> None:
         ops: list[UpdateOne] = []
         for point in series:
             ts = int(point.get("t", 0))
-            close = float(point.get("c", 0.0))
+            close = _finite_float(point.get("c"))
             if not ts:
+                continue
+            if close is None:
                 continue
             ops.append(
                 UpdateOne(
@@ -1149,8 +1196,8 @@ async def get_realtime_price(
     if cached is not None:
         return cached
     try:
-        yf_quote = await yfinance.get_quote(sym, is_inr=is_inr)
-        if yf_quote and yf_quote.get("c"):
+        yf_quote = _sanitize_quote_payload(await yfinance.get_quote(sym, is_inr=is_inr))
+        if yf_quote and yf_quote.get("c") is not None:
             response = {"symbol": sym, "quote": yf_quote, "source": "yfinance"}
             _cache_set(cache_key, response, 10)
             return response
@@ -1226,7 +1273,9 @@ async def get_history(
         )
         docs = list(cursor)
         docs.reverse()
-        closes = [{"t": int(d["t"]), "c": float(d["c"])} for d in docs if "t" in d and "c" in d]
+        closes = _sanitize_series(
+            [{"t": d.get("t"), "c": d.get("c")} for d in docs if "t" in d and "c" in d]
+        )
     except Exception:
         closes = []
 
@@ -1241,7 +1290,7 @@ async def get_history(
                 detail="Local-only mode is enabled; live data is unavailable.",
             )
         currency = "INR" if is_inr else "USD"
-        series = local_data.get_series(sym, currency, days)
+        series = _sanitize_series(local_data.get_series(sym, currency, days))
         _store_history(sym, series, "local")
         return {"symbol": sym, "source": "local", "series": series}
 
@@ -1253,7 +1302,7 @@ async def get_history(
     # 2) yfinance daily series (no API key needed)
     if resolution.upper() == "D":
         try:
-            series = await yfinance.get_daily_series(sym, days, is_inr=is_inr)
+            series = _sanitize_series(await yfinance.get_daily_series(sym, days, is_inr=is_inr))
             if series:
                 if days and len(series) > days:
                     series = series[-days:]
@@ -1273,7 +1322,7 @@ async def get_history(
                 last_error: Exception | None = None
                 for candidate in candidates:
                     try:
-                        series = alpha.get_daily_series(candidate)
+                        series = _sanitize_series(alpha.get_daily_series(candidate))
                         if series:
                             break
                     except Exception as exc:
@@ -1299,7 +1348,7 @@ async def get_history(
                 detail="Alpha Vantage unavailable and local fallback disabled.",
             )
         currency = "INR"
-        series = local_data.get_series(sym, currency, days)
+        series = _sanitize_series(local_data.get_series(sym, currency, days))
         _store_history(sym, series, "local")
         return {"symbol": sym, "source": "local", "series": series}
 
@@ -1313,9 +1362,12 @@ async def get_history(
         try:
             data = await service.get_candles(sym, resolution, from_unix, to_unix)
             if data.get("s") == "ok" and data.get("t") and data.get("c"):
-                series = [{"t": int(t), "c": float(c)} for t, c in zip(data["t"], data["c"])]
-                _store_history(sym, series, "finnhub")
-                return {"symbol": sym, "source": "finnhub", "series": series}
+                series = _sanitize_series(
+                    [{"t": int(t), "c": c} for t, c in zip(data["t"], data["c"])]
+                )
+                if series:
+                    _store_history(sym, series, "finnhub")
+                    return {"symbol": sym, "source": "finnhub", "series": series}
         except Exception as exc:
             if not allow_local:
                 raise HTTPException(
@@ -1330,7 +1382,7 @@ async def get_history(
     # 5) Alpha Vantage fallback for non-INR symbols
     if settings.ALPHAVANTAGE_API_KEY:
         try:
-            series = alpha.get_daily_series(sym)
+            series = _sanitize_series(alpha.get_daily_series(sym))
             if series:
                 if days and len(series) > days:
                     series = series[-days:]
@@ -1353,6 +1405,6 @@ async def get_history(
             detail="Live data unavailable and local fallback disabled.",
         )
     currency = "INR" if is_inr else "USD"
-    series = local_data.get_series(sym, currency, days)
+    series = _sanitize_series(local_data.get_series(sym, currency, days))
     _store_history(sym, series, "local")
     return {"symbol": sym, "source": "local", "series": series}

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-const API = 'http://localhost:8001';
+import { fetchJsonWithFallback } from "@/lib/api-base";
 
 const STOCKS = [
   { name: 'Apple',               symbol: 'AAPL',      apiSymbol: 'AAPL',          exchange: 'NYSE', currency: 'USD' },
@@ -26,6 +25,9 @@ type StockData = {
   change_pct?: number;
   source?: string;
 };
+
+const asFiniteNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
 function isMarketOpen(exchange: string): boolean {
   const now = new Date();
@@ -64,33 +66,37 @@ async function fetchAllPrices() {
   const results = await Promise.allSettled(
     STOCKS.map(async (s) => {
       try {
-        const liveRes = await fetch(
-          `${API}/api/v1/stocks/live-price/${encodeURIComponent(s.apiSymbol)}`
+        const live = await fetchJsonWithFallback<{
+          source?: string;
+          price?: number | null;
+          change_pct?: number | null;
+        }>(
+          `/api/v1/stocks/live-price/${encodeURIComponent(s.apiSymbol)}`
         );
-        if (liveRes.ok) {
-          const live = await liveRes.json();
-          return {
-            source: live?.source ?? "live",
-            price: typeof live?.price === "number" ? live.price : undefined,
-            change_pct:
-              typeof live?.change_pct === "number" ? live.change_pct : undefined,
-          };
-        }
+        return {
+          source: live?.source ?? "live",
+          price: asFiniteNumber(live?.price),
+          change_pct: asFiniteNumber(live?.change_pct),
+        };
       } catch {
         // Fall through to quote endpoint.
       }
 
-      const quoteRes = await fetch(
-        `${API}/api/v1/stocks/${encodeURIComponent(s.apiSymbol)}/quote`
+      const quote = await fetchJsonWithFallback<{
+        source?: string;
+        quote?: {
+          c?: number | null;
+          pc?: number | null;
+        };
+      }>(
+        `/api/v1/stocks/${encodeURIComponent(s.apiSymbol)}/quote`
       );
-      const quote = await quoteRes.json();
+      const current = asFiniteNumber(quote?.quote?.c);
+      const previous = asFiniteNumber(quote?.quote?.pc);
       return {
         source: quote?.source ?? "quote",
-        price: quote?.quote?.c ?? undefined,
-        change_pct:
-          quote?.quote?.pc
-            ? ((quote.quote.c - quote.quote.pc) / quote.quote.pc) * 100
-            : undefined,
+        price: current,
+        change_pct: current !== undefined && previous ? ((current - previous) / previous) * 100 : undefined,
       };
     })
   );

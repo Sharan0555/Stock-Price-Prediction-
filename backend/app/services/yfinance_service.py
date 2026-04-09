@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+import math
 from typing import Iterable
 
 import pytz
@@ -85,6 +86,8 @@ class YFinanceService:
             try:
                 close_value = float(close)
             except (TypeError, ValueError):
+                continue
+            if not math.isfinite(close_value):
                 continue
             ts = self._to_timestamp(idx)
             series.append({"t": ts, "c": round(close_value, 2)})

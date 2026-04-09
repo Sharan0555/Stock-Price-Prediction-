@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { fetchJsonWithFallback } from "@/lib/api-base";
 
 interface NewsItem {
   title: string;
@@ -24,22 +25,44 @@ interface Sentiment {
   notes: string;
 }
 
+const asFiniteNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
 export default function MarketNewsPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [indicesData, setIndicesData] = useState<IndexItem[]>([]);
   const [sentiment, setSentiment] = useState<Sentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(true);
 
+  const formatIndexPrice = (item: IndexItem) => {
+    const price = asFiniteNumber(item.price);
+    if (price === null) return "—";
+    return item.label === "USDINR"
+      ? price.toFixed(2)
+      : price.toLocaleString("en-US", {
+          maximumFractionDigits: 2,
+          minimumFractionDigits: 2,
+        });
+  };
+
+  const formatIndexChange = (item: IndexItem) => {
+    const change = asFiniteNumber(item.chg);
+    if (change === null) return "—";
+    return `${item.up ? "+" : ""}${change.toFixed(2)}%`;
+  };
+
   // News — refresh every 5 minutes
   useEffect(() => {
     async function loadNews() {
       try {
         setNewsLoading(true);
-        const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/news`);
-        const data = await res.json();
-        setNews(data);
-      } catch (e) { console.error(e); }
-      finally { setNewsLoading(false); }
+        const data = await fetchJsonWithFallback<NewsItem[]>("/api/news");
+        setNews(Array.isArray(data) ? data : []);
+      } catch {
+        setNews([]);
+      } finally {
+        setNewsLoading(false);
+      }
     }
     loadNews();
     const i = setInterval(loadNews, 300_000);
@@ -50,10 +73,11 @@ export default function MarketNewsPage() {
   useEffect(() => {
     async function loadIndices() {
       try {
-        const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/indices`);
-        const data = await res.json();
-        setIndicesData(data);
-      } catch (e) { console.error(e); }
+        const data = await fetchJsonWithFallback<IndexItem[]>("/api/indices");
+        setIndicesData(Array.isArray(data) ? data : []);
+      } catch {
+        setIndicesData([]);
+      }
     }
     loadIndices();
     const i = setInterval(loadIndices, 30_000);
@@ -64,10 +88,11 @@ export default function MarketNewsPage() {
   useEffect(() => {
     async function loadSentiment() {
       try {
-        const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/sentiment`);
-        const data = await res.json();
+        const data = await fetchJsonWithFallback<Sentiment>("/api/sentiment");
         setSentiment(data);
-      } catch (e) { console.error(e); }
+      } catch {
+        setSentiment(null);
+      }
     }
     loadSentiment();
     const i = setInterval(loadSentiment, 900_000);
@@ -164,16 +189,14 @@ export default function MarketNewsPage() {
               <span key={`${idx.label}-${index}`} style={{ marginRight: 28, whiteSpace: "nowrap" }}>
                 <span className="font-semibold text-[var(--ink)]" style={{ marginRight: 6 }}>{idx.label}</span>
                 <span className="text-[var(--ink-soft)]" style={{ marginRight: 4 }}>
-                  {idx.label === "USDINR"
-                    ? idx.price.toFixed(2)
-                    : idx.price.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                  {formatIndexPrice(idx)}
                 </span>
                 <span
                   className={`text-xs font-semibold ${
                     idx.up ? "text-emerald-700" : "text-red-700"
                   }`}
                 >
-                  {idx.up ? "+" : ""}{idx.chg.toFixed(2)}%
+                  {formatIndexChange(idx)}
                 </span>
               </span>
             ))}

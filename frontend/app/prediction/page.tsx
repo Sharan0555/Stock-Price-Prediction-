@@ -22,18 +22,18 @@ type SymbolsResponse = {
 type QuoteResponse = {
   symbol: string;
   quote: {
-    c: number;
-    h: number;
-    l: number;
-    o: number;
-    pc: number;
+    c: number | null;
+    h: number | null;
+    l: number | null;
+    o: number | null;
+    pc: number | null;
   };
 };
 
 type HistoryResponse = {
   symbol: string;
   source: string;
-  series: Array<{ t: number; c: number }>;
+  series: Array<{ t: number; c: number | null }>;
 };
 
 type PredictionResponse = {
@@ -87,6 +87,8 @@ const isInrCandidate = (item: SearchResult) =>
   item.symbol?.includes(".BO");
 
 const signalSide = (signal: "BUY" | "HOLD" | "SELL") => signal;
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
 
 export default function PredictionPage() {
   const [query, setQuery] = useState("");
@@ -180,7 +182,9 @@ export default function PredictionPage() {
       }
       if (historyRes.status === "fulfilled") {
         setHistory(historyRes.value);
-        const closes = (historyRes.value.series || []).map((point) => point.c);
+        const closes = (historyRes.value.series || [])
+          .map((point) => point.c)
+          .filter(isFiniteNumber);
         if (closes.length >= 2) {
           try {
             const predictionRes = await fetchJsonWithFallback<PredictionResponse>(
@@ -194,7 +198,7 @@ export default function PredictionPage() {
             setPrediction(predictionRes);
           } catch {
             setPrediction(null);
-            setPredictionError("Prediction model is unavailable right now.");
+            setPredictionError("Prediction is temporarily unavailable right now.");
           }
         } else {
           setPrediction(null);

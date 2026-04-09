@@ -23,13 +23,16 @@ type SymbolsResp = {
 type QuoteResponse = {
   symbol: string;
   quote: {
-    c: number;
-    h: number;
-    l: number;
-    o: number;
-    pc: number;
+    c: number | null;
+    h: number | null;
+    l: number | null;
+    o: number | null;
+    pc: number | null;
   };
 };
+
+const asFiniteNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
 
 export default function StocksPage() {
   const [exchange, setExchange] = useState("US");
@@ -214,6 +217,7 @@ export default function StocksPage() {
 
   const showingCount = data ? Math.min(data.total, data.results.length) : 0;
   const exchangeLabel = exchange === "INR" ? "INR" : "US";
+  const currentPrice = asFiniteNumber(quote?.quote?.c);
 
   return (
     <div className="min-h-screen">
@@ -308,7 +312,11 @@ export default function StocksPage() {
             <div className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3">
               <div className="text-xs text-[var(--ink-muted)]">Current price</div>
               <div className="mt-1 font-display text-2xl text-[var(--ink)]">
-                {quote ? quote.quote.c.toFixed(2) : detailLoading ? "Loading..." : "—"}
+                {currentPrice !== null
+                  ? currentPrice.toFixed(2)
+                  : detailLoading
+                    ? "Loading..."
+                    : "—"}
               </div>
             </div>
           </div>

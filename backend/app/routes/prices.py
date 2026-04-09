@@ -1,4 +1,5 @@
 from datetime import datetime, time as dtime, timedelta
+import math
 
 import pytz
 import yfinance as yf
@@ -51,6 +52,22 @@ def is_nse_open() -> bool:
     return dtime(9, 15) <= now.time() <= dtime(15, 30)
 
 
+def _safe_float(value: object, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(number):
+        return default
+    return round(number, 2)
+
+
+def _safe_pct_change(price: float, prev: float) -> float:
+    if not prev or not math.isfinite(price) or not math.isfinite(prev):
+        return 0.0
+    return round(((price - prev) / prev) * 100, 2)
+
+
 def get_accurate_price(yf_sym: str, market_open: bool) -> tuple[float, float]:
     """
     Returns (current_price, previous_close).
@@ -61,19 +78,22 @@ def get_accurate_price(yf_sym: str, market_open: bool) -> tuple[float, float]:
     if market_open:
         hist = ticker.history(period="1d", interval="1m")
         if not hist.empty:
-            price = round(float(hist["Close"].iloc[-1]), 2)
+            price = _safe_float(hist["Close"].iloc[-1])
             daily = ticker.history(period="5d", interval="1d")
             if len(daily) >= 2:
-                prev = round(float(daily["Close"].iloc[-2]), 2)
+                prev = _safe_float(daily["Close"].iloc[-2], default=price)
             else:
-                prev = round(float(hist["Open"].iloc[0]), 2)
+                prev = _safe_float(hist["Open"].iloc[0], default=price)
             return price, prev
 
     hist = ticker.history(period="5d", interval="1d")
     if len(hist) >= 2:
-        return round(float(hist["Close"].iloc[-1]), 2), round(float(hist["Close"].iloc[-2]), 2)
+        return (
+            _safe_float(hist["Close"].iloc[-1]),
+            _safe_float(hist["Close"].iloc[-2]),
+        )
     if len(hist) == 1:
-        price = round(float(hist["Close"].iloc[-1]), 2)
+        price = _safe_float(hist["Close"].iloc[-1])
         return price, price
     return 0.0, 0.0
 
@@ -89,7 +109,7 @@ def build_response() -> list:
         market_open = is_nyse_open() if exchange == "NYSE" else is_nse_open()
         try:
             price, prev = get_accurate_price(meta["yf_sym"], market_open)
-            chg = round(((price - prev) / prev) * 100, 2) if prev else 0.0
+            chg = _safe_pct_change(price, prev)
             results.append(
                 {
                     "sym": sym,
@@ -157,14 +177,14 @@ def get_indices():
             t     = yf.Ticker(yf_sym)
             hist  = t.history(period="2d", interval="1d")
             if len(hist) >= 2:
-                price = round(float(hist["Close"].iloc[-1]), 2)
-                prev  = round(float(hist["Close"].iloc[-2]), 2)
+                price = _safe_float(hist["Close"].iloc[-1])
+                prev  = _safe_float(hist["Close"].iloc[-2], default=price)
             elif len(hist) == 1:
-                price = round(float(hist["Close"].iloc[-1]), 2)
+                price = _safe_float(hist["Close"].iloc[-1])
                 prev  = price
             else:
                 price, prev = 0.0, 0.0
-            chg = round(((price - prev) / prev) * 100, 2) if prev else 0.0
+            chg = _safe_pct_change(price, prev)
             results.append({
                 "label": label,
                 "price": price,
