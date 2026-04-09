@@ -4,11 +4,21 @@ services:
     env: python
     plan: free
     buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8001
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: FINNHUB_API_KEY
         sync: false
       - key: ALPHAVANTAGE_API_KEY
         sync: false
       - key: FRONTEND_URL
+        sync: false
+      - key: POSTGRES_DSN
+        sync: false
+      - key: MONGO_DSN
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false

@@ -62,6 +62,18 @@ class GoogleAuthBody(BaseModel):
     mode: Literal["login", "register"] = "login"
 
 
+@router.get("/google/client-id")
+def google_client_id() -> dict:
+    """
+    Returns the configured Google OAuth Client ID (not a secret).
+    Frontend can use this to initialize Google Identity Services without
+    requiring a NEXT_PUBLIC env var at build time.
+    """
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=404, detail="Google login is not configured.")
+    return {"client_id": settings.GOOGLE_CLIENT_ID}
+
+
 @router.post("/register")
 def register(body: RegisterBody) -> dict:
     email = body.email.strip().lower()

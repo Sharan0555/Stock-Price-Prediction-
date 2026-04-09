@@ -1,60 +1,17 @@
-const DEFAULT_LOCAL_API = "http://127.0.0.1:8002";
-const LEGACY_LOCAL_API = "http://127.0.0.1:8001";
 const DEFAULT_TIMEOUT_MS = 8000;
 
 const normalizeBase = (value: string) => value.replace(/\/+$/, "");
-const getConfiguredApiBase = () =>
-  process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export function getApiBaseUrl(): string {
-  const envBase = getConfiguredApiBase();
+  const envBase = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (envBase && envBase.trim().length > 0) {
     return normalizeBase(envBase);
   }
-
-  if (typeof window === "undefined") {
-    return DEFAULT_LOCAL_API;
-  }
-
-  const { protocol, hostname, port } = window.location;
-  if (port === "3000" || port === "3001") {
-    return `${protocol}//${hostname}:8002`;
-  }
-
-  return normalizeBase(`${protocol}//${hostname}`);
+  return "http://localhost:8001";
 }
 
 export function getApiBaseCandidates(): string[] {
-  const candidates: string[] = [];
-  const envBase = getConfiguredApiBase();
-  if (envBase && envBase.trim().length > 0) {
-    candidates.push(normalizeBase(envBase));
-  }
-
-  if (typeof window !== "undefined") {
-    const { protocol, hostname, port, origin } = window.location;
-    if (port === "3000" || port === "3001") {
-      candidates.push(`${protocol}//${hostname}:8002`);
-      candidates.push(`${protocol}//${hostname}:8001`);
-      if (origin) candidates.push(normalizeBase(origin));
-    } else {
-      candidates.push(DEFAULT_LOCAL_API);
-      candidates.push(LEGACY_LOCAL_API);
-      if (origin) candidates.push(normalizeBase(origin));
-    }
-  } else {
-    candidates.push(DEFAULT_LOCAL_API);
-    candidates.push(LEGACY_LOCAL_API);
-  }
-
-  const deduped = new Set<string>();
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    if (deduped.has(candidate)) continue;
-    deduped.add(candidate);
-  }
-
-  return Array.from(deduped);
+  return [getApiBaseUrl()];
 }
 
 async function fetchWithTimeout(

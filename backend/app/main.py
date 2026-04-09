@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager, suppress
 
@@ -13,7 +14,6 @@ from app.api.v1 import (
     routes_stocks,
 )
 from app.api.v1.routes import live_price as live_price_routes
-from app.core.config import settings
 from app.routes.prices import router as prices_router
 from app.routes.finnhub_ws import router as finnhub_ws_router, finnhub_listener
 from app.routes.news import router as news_router
@@ -48,28 +48,15 @@ async def lifespan(app: FastAPI):
 
 
 def _get_allowed_origins() -> list[str]:
-    configured = [str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS]
-    defaults = [
-        "http://localhost",
-        "http://127.0.0.1",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-    ]
+    cors_origins = json.loads(
+        os.getenv("BACKEND_CORS_ORIGINS", '["http://localhost:3000"]')
+    )
 
     frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
-    if frontend_url:
-        defaults.append(frontend_url)
+    if frontend_url and frontend_url not in cors_origins:
+        cors_origins.append(frontend_url)
 
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for origin in [*defaults, *configured]:
-        if not origin or origin in seen:
-            continue
-        seen.add(origin)
-        deduped.append(origin)
-    return deduped
+    return [str(origin).rstrip("/") for origin in cors_origins]
 
 
 def create_app() -> FastAPI:
@@ -84,7 +71,6 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_get_allowed_origins(),
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -82,7 +82,35 @@ export default function GoogleAuthButton({
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const [clientId, setClientId] = useState<string | null>(
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || null,
+  );
+
+  useEffect(() => {
+    if (clientId) return;
+    let cancelled = false;
+
+    fetchWithApiFallback("/api/v1/auth/google/client-id")
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `Google sign-in is not configured (${res.status}).`);
+        }
+        const data = (await res.json()) as { client_id?: string };
+        const id = (data.client_id || "").trim();
+        if (!id) {
+          throw new Error("Google sign-in is not configured.");
+        }
+        if (!cancelled) setClientId(id);
+      })
+      .catch(() => {
+        // Keep the existing UI notice when not configured.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
 
   useEffect(() => {
     if (!clientId || !buttonRef.current || initializedRef.current) return;
@@ -156,7 +184,8 @@ export default function GoogleAuthButton({
   if (!clientId) {
     return (
       <div className="google-auth__notice">
-        Google sign-in is not configured. Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID`.
+        Google sign-in is not configured. Set `GOOGLE_CLIENT_ID` on the backend (or
+        `NEXT_PUBLIC_GOOGLE_CLIENT_ID` on the frontend).
       </div>
     );
   }
