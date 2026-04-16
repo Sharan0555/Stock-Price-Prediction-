@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import AuthGate from "./auth-gate";
 import AppHeader from "./app-header";
 import PageTransition from "./page-transition";
+import { ThemeProvider } from "@/lib/theme-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,14 +16,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
-          <AuthGate>
-            <AppHeader />
-            <PageTransition>{children}</PageTransition>
-          </AuthGate>
-        </div>
+        <ThemeProvider>
+          <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
+            <AuthGate>
+              <AppHeader />
+              <PageTransition>{children}</PageTransition>
+            </AuthGate>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );

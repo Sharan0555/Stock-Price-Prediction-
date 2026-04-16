@@ -72,11 +72,10 @@ class YFinanceService:
             return [sym]
         return [f"{sym}.NS", f"{sym}.BO"]
 
-    def _fetch_series_sync(self, symbol: str, start: datetime, end: datetime) -> list[dict]:
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(start=start, end=end, interval="1d", auto_adjust=False)
+    def _history_to_ohlcv(self, df) -> list[dict]:
         if df is None or df.empty:
             return []
+
         series: list[dict] = []
         for idx, row in df.iterrows():
             close = row.get("Close")
@@ -86,10 +85,37 @@ class YFinanceService:
                 close_value = float(close)
             except (TypeError, ValueError):
                 continue
+
+            open_value = row.get("Open", close_value)
+            high_value = row.get("High", close_value)
+            low_value = row.get("Low", close_value)
+            volume_value = row.get("Volume", 0)
+
             ts = self._to_timestamp(idx)
-            series.append({"t": ts, "c": round(close_value, 2)})
+            series.append(
+                {
+                    "t": ts,
+                    "o": round(float(open_value), 2),
+                    "h": round(float(high_value), 2),
+                    "l": round(float(low_value), 2),
+                    "c": round(close_value, 2),
+                    "v": self._normalize_volume(volume_value),
+                }
+            )
+
         series.sort(key=lambda item: item["t"])
         return series
+
+    def _fetch_ohlcv_sync(self, symbol: str, start: datetime, end: datetime) -> list[dict]:
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(start=start, end=end, interval="1d", auto_adjust=False)
+        return self._history_to_ohlcv(df)
+
+    def _fetch_series_sync(self, symbol: str, start: datetime, end: datetime) -> list[dict]:
+        return [
+            {"t": point["t"], "c": point["c"]}
+            for point in self._fetch_ohlcv_sync(symbol, start, end)
+        ]
 
     def _get_company_info_sync(self, symbol: str) -> dict:
         info = yf.Ticker(symbol).info or {}
@@ -117,6 +143,18 @@ class YFinanceService:
         for candidate in candidates:
             c = candidate
             series = await loop.run_in_executor(_executor, lambda: self._fetch_series_sync(c, start, end))
+            if series:
+                return series
+        return []
+
+    def get_daily_ohlcv_sync(self, symbol: str, days: int, *, is_inr: bool = False) -> list[dict]:
+        now = datetime.now(timezone.utc)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days)
+        end = now + timedelta(days=1)
+
+        candidates: Iterable[str] = self._inr_candidates(symbol) if is_inr else [symbol.upper().strip()]
+        for candidate in candidates:
+            series = self._fetch_ohlcv_sync(candidate, start, end)
             if series:
                 return series
         return []

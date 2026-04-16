@@ -15,9 +15,13 @@ pydantic
 pydantic-settings
 numpy
 tensorflow
+pandas
+torch
+transformers
 alembic
 pytest
 google-auth
 pytz>=2024.1
 websockets>=12.0
 certifi
+PyJWT>=2.8.0

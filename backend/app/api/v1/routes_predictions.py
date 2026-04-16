@@ -81,6 +81,7 @@ def _compute_risk_and_signal(closes: List[float], predicted: float) -> RiskInfo:
 
 @router.post("")
 def predict_price(body: PredictionRequestBody = Body(...)) -> dict:
+    print(f"[DEBUG] Prediction request: symbol={body.symbol}, closes count={len(body.closes)}")
     cache_key = hashlib.md5(
         json.dumps({"s": body.symbol.upper(), "c": body.closes[-10:]}, sort_keys=True).encode()
     ).hexdigest()
@@ -89,7 +90,7 @@ def predict_price(body: PredictionRequestBody = Body(...)) -> dict:
         cached["cached"] = True
         return cached
     try:
-        result = prediction_engine.predict_next_price(body.closes)
+        result = prediction_engine.predict_next_price(body.closes, symbol=body.symbol)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     risk = _compute_risk_and_signal(body.closes, result["ensemble"])

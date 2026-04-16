@@ -1,0 +1,1 @@
+[{"fold": 1, "train_size": 91, "validation_size": 61, "mae": 2.48, "rmse": 3.8354, "mape": 1.1225}, {"fold": 2, "train_size": 152, "validation_size": 61, "mae": 4.2438, "rmse": 5.5213, "mape": 1.4571}, {"fold": 3, "train_size": 213, "validation_size": 61, "mae": 4.1387, "rmse": 5.2862, "mape": 1.3365}]

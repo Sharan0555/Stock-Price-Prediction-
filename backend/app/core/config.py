@@ -48,6 +48,11 @@ class Settings(BaseSettings):
 
     GOOGLE_CLIENT_ID: str = Field(default="", validation_alias="GOOGLE_CLIENT_ID")
 
+    # Firebase Authentication
+    FIREBASE_PROJECT_ID: str = Field(default="", validation_alias="FIREBASE_PROJECT_ID")
+    FIREBASE_PRIVATE_KEY: str = Field(default="", validation_alias="FIREBASE_PRIVATE_KEY")
+    FIREBASE_CLIENT_EMAIL: str = Field(default="", validation_alias="FIREBASE_CLIENT_EMAIL")
+
     # Anthropic (server-side proxy recommended; do not expose API key to browser)
     ANTHROPIC_API_KEY: str = Field(
         default="",

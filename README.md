@@ -142,19 +142,27 @@ cp .env.example .env
 # Edit .env and add your FINNHUB_API_KEY and ALPHAVANTAGE_API_KEY
 ```
 
-3. **Run database setup**
+3. **Optional: configure Google sign-in**
+
+- Create a Google Cloud OAuth 2.0 Client ID with application type `Web application`.
+- Add every frontend origin you actually use to Authorized JavaScript origins, such as `http://localhost:3000`, `http://127.0.0.1:3000`, or another local port like `http://localhost:3001`.
+- If your OAuth consent screen is in Testing, add your Google account as a test user.
+- Set `GOOGLE_CLIENT_ID=...` in `.env`.
+- Keep `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8001` for local development.
+
+4. **Run database setup**
 
 ```bash
 bash backend/setup_db.sh
 ```
 
-4. **Start everything**
+5. **Start everything**
 
 ```bash
 bash start.sh
 ```
 
-5. **Open http://localhost:3000**
+6. **Open http://localhost:3000**
 
 **Stop everything**: `bash stop.sh`
 
@@ -165,16 +173,17 @@ bash start.sh
 ### Backend → Render (free)
 1. Go to render.com and sign up with GitHub
 2. Click New → Blueprint → select this repo
-3. Add env vars: `FINNHUB_API_KEY`, `ALPHAVANTAGE_API_KEY`, and `FRONTEND_URL`
+3. Add env vars: `FINNHUB_API_KEY`, `ALPHAVANTAGE_API_KEY`, `FRONTEND_URL`, and `GOOGLE_CLIENT_ID` if you want Google sign-in
 4. Deploy — Render will assign a URL such as `https://<your-render-service>.onrender.com`
 
 ### Frontend → Vercel (free)
 1. Go to vercel.com and sign up with GitHub
 2. Click New Project → import this repo
 3. Set root directory to: frontend
-4. Add env var: `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com`
+4. Add env var: `NEXT_PUBLIC_API_BASE_URL=https://<your-render-service>.onrender.com`
 5. Deploy — Vercel will assign a URL such as `https://<your-project>.vercel.app`
 6. Update Render `FRONTEND_URL` to your deployed Vercel URL so backend CORS allows the frontend
+7. In Google Cloud Console, add your deployed Vercel URL to Authorized JavaScript origins for the same OAuth client
 
 ---
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 interface Strategy {
   side: "BUY" | "SELL";
   entry?: [number, number];
@@ -21,7 +23,7 @@ function fmt(val: number, currency: string) {
     : `$${val.toFixed(2)}`;
 }
 
-function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+const Row = memo(function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div style={{
       display: "flex",
@@ -40,9 +42,9 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
       </span>
     </div>
   );
-}
+});
 
-export default function StrategyCard({ strategy, currency = "USD" }: StrategyCardProps) {
+const StrategyCard = memo(function StrategyCard({ strategy, currency = "USD" }: StrategyCardProps) {
   if (!strategy) {
     return (
       <div style={{
@@ -118,4 +120,6 @@ export default function StrategyCard({ strategy, currency = "USD" }: StrategyCar
       </div>
     </div>
   );
-}
+});
+
+export default StrategyCard;

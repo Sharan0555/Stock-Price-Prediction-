@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { fetchJsonWithFallback, getApiBaseUrl } from "@/lib/api-base";
 
@@ -77,6 +77,35 @@ export function useLivePrice(symbol?: string): LivePriceState {
     let reconnectTimer: number | undefined;
     let socket: WebSocket | null = null;
 
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as LivePriceResponse;
+        setState((previous) => toStateUpdate(previous, payload, symbol));
+      } catch {
+        setState((previous) => ({
+          ...previous,
+          currentSymbol: symbol,
+          loading: previous.price === undefined,
+          error: "Invalid live price payload.",
+        }));
+      }
+    };
+
+    const handleError = () => {
+      if (!active) return;
+      setState((previous) => ({
+        ...previous,
+        currentSymbol: symbol,
+        loading: previous.price === undefined,
+        error: "Live feed connection failed.",
+      }));
+    };
+
+    const handleClose = () => {
+      if (!active) return;
+      reconnectTimer = window.setTimeout(connect, 3000);
+    };
+
     const connect = () => {
       if (!active) return;
 
@@ -85,34 +114,9 @@ export function useLivePrice(symbol?: string): LivePriceState {
         `${wsBase}/api/v1/stocks/ws/${encodeURIComponent(symbol)}`,
       );
 
-      socket.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data) as LivePriceResponse;
-          setState((previous) => toStateUpdate(previous, payload, symbol));
-        } catch {
-          setState((previous) => ({
-            ...previous,
-            currentSymbol: symbol,
-            loading: previous.price === undefined,
-            error: "Invalid live price payload.",
-          }));
-        }
-      };
-
-      socket.onerror = () => {
-        if (!active) return;
-        setState((previous) => ({
-          ...previous,
-          currentSymbol: symbol,
-          loading: previous.price === undefined,
-          error: "Live feed connection failed.",
-        }));
-      };
-
-      socket.onclose = () => {
-        if (!active) return;
-        reconnectTimer = window.setTimeout(connect, 3000);
-      };
+      socket.onmessage = handleMessage;
+      socket.onerror = handleError;
+      socket.onclose = handleClose;
     };
 
     connect();

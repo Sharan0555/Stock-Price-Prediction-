@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 interface SignalBannerProps {
   signal?: "BUY" | "SELL" | "HOLD";
   confidence?: number;
@@ -7,7 +9,7 @@ interface SignalBannerProps {
   loading?: boolean;
 }
 
-export default function SignalBanner({ signal, confidence, symbol, loading }: SignalBannerProps) {
+const SignalBanner = memo(function SignalBanner({ signal, confidence, symbol, loading }: SignalBannerProps) {
   if (!signal && !loading) return null;
 
   const isBuy = signal === "BUY";
@@ -103,4 +105,6 @@ export default function SignalBanner({ signal, confidence, symbol, loading }: Si
       )}
     </div>
   );
-}
+});
+
+export default SignalBanner;

@@ -1,14 +1,54 @@
 "use client";
+
+import { memo, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceDot, CartesianGrid } from "recharts";
+
 type HistoryPoint = { t: number; c: number };
-interface PriceChartProps { series: HistoryPoint[]; predictedPrice?: number; currency?: "USD" | "INR"; signal?: "BUY" | "SELL" | "HOLD"; }
-function formatDate(ts: number) { return new Date(ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
-function formatPrice(val: number, currency: string) { return currency === "INR" ? `₹${val.toFixed(2)}` : `$${val.toFixed(2)}`; }
-const CustomTooltip = ({ active, payload, label, currency }: { active?: boolean; payload?: {value:number}[]; label?: number; currency: string; }) => {
+
+interface PriceChartProps {
+  series: HistoryPoint[];
+  predictedPrice?: number;
+  currency?: "USD" | "INR";
+  signal?: "BUY" | "SELL" | "HOLD";
+}
+
+function formatDate(ts: number) {
+  return new Date(ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatPrice(val: number, currency: string) {
+  return currency === "INR" ? `₹${val.toFixed(2)}` : `$${val.toFixed(2)}`;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: { value: number }[];
+  label?: number;
+  currency: string;
+}
+
+const CustomTooltip = memo(function CustomTooltip({ active, payload, label, currency }: TooltipProps) {
   if (!active || !payload?.length) return null;
-  return <div style={{ background:"var(--color-background-primary)", border:"0.5px solid var(--color-border-secondary)", borderRadius:8, padding:"8px 12px", fontSize:12 }}><div style={{ color:"var(--color-text-tertiary)", marginBottom:2 }}>{label ? formatDate(label) : ""}</div><div style={{ color:"var(--color-text-primary)", fontWeight:500 }}>{formatPrice(payload[0].value, currency)}</div></div>;
-};
-export default function PriceChart({ series, predictedPrice, currency = "USD", signal }: PriceChartProps) {
+  return (
+    <div style={{
+      background: "var(--color-background-primary)",
+      border: "0.5px solid var(--color-border-secondary)",
+      borderRadius: 8,
+      padding: "8px 12px",
+      fontSize: 12,
+      color: "var(--color-text-primary)",
+    }}>
+      <div style={{ color: "var(--color-text-tertiary)", marginBottom: 2 }}>
+        {label ? formatDate(label) : ""}
+      </div>
+      <div style={{ color: "var(--color-text-primary)", fontWeight: 500 }}>
+        {formatPrice(payload[0].value, currency)}
+      </div>
+    </div>
+  );
+});
+
+const PriceChart = memo(function PriceChart({ series, predictedPrice, currency = "USD", signal }: PriceChartProps) {
   if (!series || series.length === 0) return <div style={{ height:220, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--color-text-tertiary)", fontSize:13 }}>No chart data available</div>;
   const prices = series.map(p => p.c);
   const minPrice = Math.min(...prices);
@@ -44,4 +84,6 @@ export default function PriceChart({ series, predictedPrice, currency = "USD", s
       </ResponsiveContainer>
     </div>
   );
-}
+});
+
+export default PriceChart;

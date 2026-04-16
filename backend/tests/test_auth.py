@@ -40,3 +40,31 @@ def test_auth_login_preflight_allows_local_dev_origin(client):
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
+
+
+def test_password_login_for_google_only_account_returns_clear_error(
+    client, monkeypatch, tmp_path: Path
+):
+    users_path = tmp_path / "users.json"
+    monkeypatch.setattr(routes_auth, "_USERS_PATH", users_path)
+    users_path.write_text(
+        """
+        {
+          "google.only@example.com": {
+            "email": "google.only@example.com",
+            "provider": "google"
+          }
+        }
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "google.only@example.com", "password": "secret123"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "This account uses Google sign-in. Please continue with Google."
+    )

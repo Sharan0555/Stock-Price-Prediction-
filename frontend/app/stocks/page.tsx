@@ -1,8 +1,8 @@
 "use client";
 
+import PredictionChart from "@/components/PredictionChart";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchJsonWithFallback, fetchWithApiFallback } from "@/lib/api-base";
 
 type SymbolRow = {
   symbol: string;
@@ -31,6 +31,27 @@ type QuoteResponse = {
   };
 };
 
+type PredictionSnapshotResponse = {
+  symbol: string;
+  currency: "USD" | "INR";
+  quote_source: string;
+  history_source: string;
+  quote: QuoteResponse["quote"];
+  history: Array<{ t: number; c: number }>;
+  predictions: {
+    lstm: number;
+    ensemble: number;
+  };
+  risk: {
+    score: number;
+    level: "low" | "medium" | "high";
+    signal: "BUY" | "SELL" | "HOLD";
+    last_price: number;
+    change_pct: number;
+  };
+  indicators: Record<string, number | string | null>;
+};
+
 export default function StocksPage() {
   const [exchange, setExchange] = useState("US");
   const [query, setQuery] = useState("");
@@ -43,6 +64,10 @@ export default function StocksPage() {
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [predictionSnapshot, setPredictionSnapshot] =
+    useState<PredictionSnapshotResponse | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionError, setPredictionError] = useState<string | null>(null);
   const quoteCacheRef = useRef<Record<string, { data: QuoteResponse; ts: number }>>(
     {},
   );
@@ -63,11 +88,15 @@ export default function StocksPage() {
         });
         if (query.trim()) params.set("q", query.trim());
 
-        const json = await fetchJsonWithFallback<SymbolsResp>(
-          `/api/v1/stocks/symbols?${params.toString()}`,
-        );
+        console.log("Fetching stocks from:", `http://localhost:8001/api/v1/stocks/symbols?${params.toString()}`);
+        const res = await fetch(`http://localhost:8001/api/v1/stocks/symbols?${params.toString()}`);
+        console.log("Response status:", res.status);
+        if (!res.ok) throw new Error("Failed to load stocks");
+        const json = await res.json() as SymbolsResp;
+        console.log("Stocks data received:", json);
         if (!cancelled) setData(json);
       } catch (e: unknown) {
+        console.error("Error loading stocks:", e);
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Failed to load stocks");
       } finally {
@@ -84,12 +113,14 @@ export default function StocksPage() {
     setSelected(null);
     setQuote(null);
     setDetailError(null);
+    setPredictionSnapshot(null);
+    setPredictionError(null);
   }, [exchange]);
 
   const fetchWithTimeout = useCallback(
     (path: string, ms: number) =>
       Promise.race<Response>([
-        fetchWithApiFallback(path),
+        fetch(`http://localhost:8001${path}`),
         new Promise<Response>((_, reject) =>
           setTimeout(() => reject(new Error("timeout")), ms),
         ),
@@ -207,6 +238,48 @@ export default function StocksPage() {
   }, [fetchWithTimeout, selected]);
 
   useEffect(() => {
+    if (!selected) {
+      setPredictionSnapshot(null);
+      setPredictionError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const selectedSymbol = selected.symbol;
+    setPredictionLoading(true);
+    setPredictionError(null);
+
+    async function loadPredictionSnapshot() {
+      try {
+        const res = await fetch(`http://localhost:8001/api/v1/predictions/${encodeURIComponent(selectedSymbol)}?days=60`);
+        if (!res.ok) throw new Error("Failed to load prediction");
+        const snapshotResult = await res.json() as PredictionSnapshotResponse;
+        if (cancelled) return;
+
+        setPredictionSnapshot(snapshotResult);
+      } catch (error) {
+        if (cancelled) return;
+        setPredictionSnapshot(null);
+        setPredictionError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load prediction snapshot.",
+        );
+      } finally {
+        if (!cancelled) {
+          setPredictionLoading(false);
+        }
+      }
+    }
+
+    void loadPredictionSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
+  useEffect(() => {
     if (data?.results?.length && !selected) {
       loadDetails(data.results[0]);
     }
@@ -214,6 +287,7 @@ export default function StocksPage() {
 
   const showingCount = data ? Math.min(data.total, data.results.length) : 0;
   const exchangeLabel = exchange === "INR" ? "INR" : "US";
+  const selectedCurrency: "USD" | "INR" = selected?.currency === "INR" ? "INR" : "USD";
 
   return (
     <div className="min-h-screen">
@@ -243,7 +317,7 @@ export default function StocksPage() {
                 Search (symbol or company name)
               </label>
               <input
-                className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+                className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value);
@@ -256,14 +330,14 @@ export default function StocksPage() {
                 Exchange
               </label>
               <select
-                className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+                className="w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
                 value={exchange}
                 onChange={(e) => {
                   setExchange(e.target.value.toUpperCase());
                 }}
               >
-                <option value="US">US</option>
-                <option value="INR">INR</option>
+                <option value="US" className="dark:bg-gray-800 dark:text-gray-100">US</option>
+                <option value="INR" className="dark:bg-gray-800 dark:text-gray-100">INR</option>
               </select>
             </div>
           </div>
@@ -305,10 +379,10 @@ export default function StocksPage() {
                   : "Click any stock below to load the current price."}
               </p>
             </div>
-            <div className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3">
-              <div className="text-xs text-[var(--ink-muted)]">Current price</div>
-              <div className="mt-1 font-display text-2xl text-[var(--ink)]">
-                {quote ? quote.quote.c.toFixed(2) : detailLoading ? "Loading..." : "—"}
+            <div className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3 dark:bg-gray-800 dark:border-gray-600">
+              <div className="text-xs text-[var(--ink-muted)] dark:text-gray-400">Current price</div>
+              <div className="mt-1 font-display text-2xl text-[var(--ink)] dark:text-gray-100">
+                {quote?.quote?.c ? quote.quote.c.toFixed(2) : detailLoading ? "Loading..." : "—"}
               </div>
             </div>
           </div>
@@ -318,6 +392,56 @@ export default function StocksPage() {
               {detailError}
             </div>
           )}
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.8fr)_minmax(260px,1fr)]">
+            <div>
+              <PredictionChart
+                symbol={selected?.symbol}
+                series={predictionSnapshot?.history ?? []}
+                predictedPrice={predictionSnapshot?.predictions?.ensemble}
+                currency={selectedCurrency}
+                signal={predictionSnapshot?.risk?.signal}
+              />
+            </div>
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-[var(--border)] bg-white p-4 dark:bg-gray-800 dark:border-gray-600">
+                <div className="text-xs uppercase tracking-[0.24em] text-[var(--ink-muted)] dark:text-gray-400">
+                  AI signal
+                </div>
+                <div className="mt-2 font-display text-2xl text-[var(--ink)] dark:text-gray-100">
+                  {predictionSnapshot?.risk?.signal ?? (predictionLoading ? "Loading..." : "—")}
+                </div>
+                <p className="mt-2 text-sm text-[var(--ink-soft)] dark:text-gray-300">
+                  {predictionSnapshot
+                    ? `${predictionSnapshot.risk.change_pct >= 0 ? "+" : ""}${predictionSnapshot.risk.change_pct.toFixed(2)}% projected move`
+                    : "Fresh prediction data appears here when a symbol is selected."}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-white p-4 dark:bg-gray-800 dark:border-gray-600">
+                <div className="text-xs uppercase tracking-[0.24em] text-[var(--ink-muted)] dark:text-gray-400">
+                  Technical view
+                </div>
+                <div className="mt-2 text-sm text-[var(--ink-soft)] dark:text-gray-300">
+                  Trend: {String(predictionSnapshot?.indicators?.trend ?? "—")}
+                </div>
+                <div className="mt-2 text-sm text-[var(--ink-soft)] dark:text-gray-300">
+                  RSI(14): {predictionSnapshot?.indicators?.rsi14 ?? "—"}
+                </div>
+                <div className="mt-2 text-sm text-[var(--ink-soft)] dark:text-gray-300">
+                  Volatility(20): {predictionSnapshot?.indicators?.volatility20 ?? "—"}
+                </div>
+                <div className="mt-2 text-xs text-[var(--ink-muted)] dark:text-gray-500">
+                  Sources: quote {predictionSnapshot?.quote_source ?? "—"} / history{" "}
+                  {predictionSnapshot?.history_source ?? "—"}
+                </div>
+              </div>
+              {predictionError && (
+                <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700">
+                  {predictionError}
+                </div>
+              )}
+            </div>
+          </div>
         </section>
 
         <section className="panel overflow-hidden">
@@ -359,7 +483,7 @@ export default function StocksPage() {
                       <button
                         type="button"
                         onClick={() => loadDetails(r)}
-                        className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--accent)]"
+                        className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition hover:border-[var(--accent)] dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600"
                       >
                         View
                       </button>

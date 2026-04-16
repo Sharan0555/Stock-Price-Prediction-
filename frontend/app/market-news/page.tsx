@@ -215,14 +215,14 @@ export default function MarketNewsPage() {
                 </div>
               ) : news.length === 0 ? (
                 <div className="flex-1 flex flex-col gap-4">
-                  <div className="flex-1 bg-white border border-[var(--border)] rounded-lg p-6 flex flex-col justify-center">
-                    <div className="text-lg font-semibold text-[var(--ink)] mb-2">No news available</div>
-                    <p className="text-sm text-[var(--ink-soft)]">Check back later for market updates.</p>
+                  <div className="flex-1 bg-white border border-[var(--border)] rounded-lg p-6 flex flex-col justify-center dark:bg-gray-800 dark:border-gray-600">
+                    <div className="text-lg font-semibold text-[var(--ink)] mb-2 dark:text-gray-100">No news available</div>
+                    <p className="text-sm text-[var(--ink-soft)] dark:text-gray-400">Check back later for market updates.</p>
                   </div>
                   {/* Placeholder articles to fill space */}
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex-1 bg-gray-50 border border-dashed border-[var(--border)] rounded-lg p-6 flex items-center justify-center min-h-[120px]">
-                      <span className="text-xs text-[var(--ink-muted)]">More headlines loading...</span>
+                    <div key={i} className="flex-1 bg-gray-50 border border-dashed border-[var(--border)] rounded-lg p-6 flex items-center justify-center min-h-[120px] dark:bg-gray-800 dark:border-gray-600">
+                      <span className="text-xs text-[var(--ink-muted)] dark:text-gray-400">More headlines loading...</span>
                     </div>
                   ))}
                 </div>
@@ -236,16 +236,16 @@ export default function MarketNewsPage() {
                       rel="noopener noreferrer"
                       className="block no-underline flex-1"
                     >
-                      <article className="newsroom-article h-full border border-[var(--border)] hover:border-[var(--accent)] rounded-lg p-5 hover:bg-[var(--accent-hover)] hover:shadow-sm transition-all cursor-pointer overflow-hidden bg-white flex flex-col">
-                        <div className="text-lg font-semibold text-[var(--ink)] line-clamp-2 break-words leading-snug mb-3">
+                      <article className="newsroom-article h-full border border-[var(--border)] hover:border-[var(--accent)] rounded-lg p-5 hover:bg-[var(--accent-hover)] hover:shadow-sm transition-all cursor-pointer overflow-hidden bg-white flex flex-col dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700">
+                        <div className="text-lg font-semibold text-[var(--ink)] line-clamp-2 break-words leading-snug mb-3 dark:text-gray-100">
                           {item.title}
                         </div>
                         {item.summary && (
-                          <p className="text-sm text-[var(--ink-soft)] line-clamp-3 break-words leading-relaxed flex-1">
+                          <p className="text-sm text-[var(--ink-soft)] line-clamp-3 break-words leading-relaxed flex-1 dark:text-gray-300">
                             {item.summary}
                           </p>
                         )}
-                        <div className="mt-auto pt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-muted)] border-t border-[var(--border)]">
+                        <div className="mt-auto pt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-muted)] border-t border-[var(--border)] dark:text-gray-400 dark:border-gray-600">
                           <span className="inline-flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse"></span>
                             {item.source}
@@ -260,7 +260,7 @@ export default function MarketNewsPage() {
                   {news.length < 3 && (
                     <>
                       {[...Array(3 - news.length)].map((_, i) => (
-                        <div key={`placeholder-${i}`} className="flex-1 bg-gradient-to-br from-gray-50 to-[var(--accent-soft)] border border-dashed border-[var(--border)] rounded-lg p-5 flex items-center justify-center min-h-[100px]">
+                        <div key={`placeholder-${i}`} className="flex-1 bg-gradient-to-br from-gray-50 to-[var(--accent-soft)] border border-dashed border-[var(--border)] rounded-lg p-5 flex items-center justify-center min-h-[100px] dark:from-gray-800 dark:to-gray-900 dark:border-gray-600">
                           <div className="text-center">
                             <svg className="w-8 h-8 mx-auto mb-2 text-[var(--ink-muted)] opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
@@ -292,18 +292,18 @@ export default function MarketNewsPage() {
                 <div className="h-full flex flex-col">
                   <div className="flex items-center gap-3 mb-4">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
-                      sentiment.overall === "Bullish" ? "bg-emerald-100 text-emerald-700" :
-                      sentiment.overall === "Bearish" ? "bg-red-100 text-red-700" :
-                      "bg-yellow-100 text-yellow-700"
+                      sentiment.overall === "Bullish" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                      sentiment.overall === "Bearish" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
                     }`}>
                       {sentiment.overall === "Bullish" ? "▲" :
                        sentiment.overall === "Bearish" ? "▼" : "—"}
                     </div>
                     <div>
                       <div className={`font-bold text-lg ${
-                        sentiment.overall === "Bullish" ? "text-emerald-700" :
-                        sentiment.overall === "Bearish" ? "text-red-700" :
-                        "text-yellow-700"
+                        sentiment.overall === "Bullish" ? "text-emerald-700 dark:text-emerald-400" :
+                        sentiment.overall === "Bearish" ? "text-red-700 dark:text-red-400" :
+                        "text-yellow-700 dark:text-yellow-400"
                       }`}>
                         {sentiment.overall}
                       </div>
@@ -312,7 +312,7 @@ export default function MarketNewsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex-1 bg-[rgba(160,82,45,0.04)] border border-[var(--border)] rounded-lg p-3 text-sm text-[var(--ink-soft)] leading-relaxed mb-3">
+                  <div className="flex-1 bg-[rgba(160,82,45,0.04)] border border-[var(--border)] rounded-lg p-3 text-sm text-[var(--ink-soft)] leading-relaxed mb-3 dark:bg-gray-800/50 dark:border-gray-600 dark:text-gray-300">
                     {sentiment.notes}
                   </div>
                   <div className="text-xs font-mono text-[var(--ink-muted)]">
@@ -322,42 +322,42 @@ export default function MarketNewsPage() {
               ) : (
                 <div className="h-full flex flex-col gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-xl text-gray-400">—</div>
+                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-xl text-gray-400 dark:bg-gray-700 dark:text-gray-500">—</div>
                     <div>
-                      <div className="font-bold text-lg text-gray-500">Neutral</div>
-                      <div className="text-sm text-[var(--ink-soft)]">Market data temporarily unavailable</div>
+                      <div className="font-bold text-lg text-gray-500 dark:text-gray-400">Neutral</div>
+                      <div className="text-sm text-[var(--ink-soft)] dark:text-gray-400">Market data temporarily unavailable</div>
                     </div>
                   </div>
-                  <div className="flex-1 bg-gray-50 border border-[var(--border)] rounded-lg p-4 text-sm text-gray-400 leading-relaxed flex flex-col justify-center">
+                  <div className="flex-1 bg-gray-50 border border-[var(--border)] rounded-lg p-4 text-sm text-gray-400 leading-relaxed flex flex-col justify-center dark:bg-gray-800 dark:border-gray-600 dark:text-gray-500">
                     <div className="text-center mb-4">
                       <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
                       </svg>
-                      <p className="text-sm text-gray-500">Unable to generate AI sentiment at this time.</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Unable to generate AI sentiment at this time.</p>
                     </div>
                     {/* Placeholder sentiment gauge */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-red-500">Bearish</span>
-                        <span className="text-emerald-500">Bullish</span>
+                        <span className="text-red-500 dark:text-red-400">Bearish</span>
+                        <span className="text-emerald-500 dark:text-emerald-400">Bullish</span>
                       </div>
-                      <div className="h-3 bg-gray-200 rounded-full overflow-hidden relative">
+                      <div className="h-3 bg-gray-200 rounded-full overflow-hidden relative dark:bg-gray-700">
                         <div className="absolute inset-0 bg-gradient-to-r from-red-400 via-yellow-400 to-emerald-400 opacity-30" />
                         <div className="absolute top-0 bottom-0 w-1 bg-gray-400 rounded-full left-1/2 -translate-x-1/2" />
                       </div>
                       {/* Placeholder metrics */}
                       <div className="grid grid-cols-3 gap-2 pt-2">
                         <div className="text-center">
-                          <div className="text-xs text-gray-400">Fear</div>
-                          <div className="text-sm font-semibold text-gray-500">--</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500">Fear</div>
+                          <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">--</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xs text-gray-400">Greed</div>
-                          <div className="text-sm font-semibold text-gray-500">--</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500">Greed</div>
+                          <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">--</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xs text-gray-400">Momentum</div>
-                          <div className="text-sm font-semibold text-gray-500">--</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500">Momentum</div>
+                          <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">--</div>
                         </div>
                       </div>
                     </div>
@@ -390,9 +390,9 @@ export default function MarketNewsPage() {
             </div>
             <div className="flex-1 space-y-2">
               {gainers.map((item) => (
-                <div key={item.symbol} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm hover:border-emerald-400 hover:shadow-sm transition-all">
-                  <span className="font-semibold text-[var(--ink)]">{item.symbol}</span>
-                  <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded">{item.change}</span>
+                <div key={item.symbol} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm hover:border-emerald-400 hover:shadow-sm transition-all dark:bg-gray-800 dark:border-gray-600 dark:hover:border-emerald-500">
+                  <span className="font-semibold text-[var(--ink)] dark:text-gray-200">{item.symbol}</span>
+                  <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded dark:bg-emerald-900/30 dark:text-emerald-400">{item.change}</span>
                 </div>
               ))}
             </div>
@@ -414,9 +414,9 @@ export default function MarketNewsPage() {
             </div>
             <div className="flex-1 space-y-2">
               {losers.map((item) => (
-                <div key={item.symbol} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm hover:border-red-400 hover:shadow-sm transition-all">
-                  <span className="font-semibold text-[var(--ink)]">{item.symbol}</span>
-                  <span className="text-red-700 font-medium bg-red-50 px-2 py-0.5 rounded">{item.change}</span>
+                <div key={item.symbol} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm hover:border-red-400 hover:shadow-sm transition-all dark:bg-gray-800 dark:border-gray-600 dark:hover:border-red-500">
+                  <span className="font-semibold text-[var(--ink)] dark:text-gray-200">{item.symbol}</span>
+                  <span className="text-red-700 font-medium bg-red-50 px-2 py-0.5 rounded dark:bg-red-900/30 dark:text-red-400">{item.change}</span>
                 </div>
               ))}
             </div>
@@ -435,13 +435,13 @@ export default function MarketNewsPage() {
             </div>
             <div className="flex-1 space-y-2">
               {indices.map((item) => (
-                <div key={item.name} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm hover:border-[var(--accent)] hover:shadow-sm transition-all">
+                <div key={item.name} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white px-4 py-3 text-sm hover:border-[var(--accent)] hover:shadow-sm transition-all dark:bg-gray-800 dark:border-gray-600">
                   <div>
-                    <div className="text-xs text-[var(--ink-muted)]">{item.name}</div>
-                    <div className="font-semibold text-[var(--ink)] text-base">{item.value}</div>
+                    <div className="text-xs text-[var(--ink-muted)] dark:text-gray-400">{item.name}</div>
+                    <div className="font-semibold text-[var(--ink)] text-base dark:text-gray-200">{item.value}</div>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                    item.change.startsWith("-") ? "text-red-700 bg-red-50" : "text-emerald-700 bg-emerald-50"
+                    item.change.startsWith("-") ? "text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-400" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400"
                   }`}>
                     {item.change}
                   </span>
@@ -469,8 +469,8 @@ export default function MarketNewsPage() {
                     type="button"
                     className={`relative rounded-full border px-3 py-1.5 transition-all duration-300 overflow-hidden ${
                       tab === "All" 
-                        ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-md" 
-                        : "border-[var(--border)] bg-white/70 text-[var(--ink-muted)] hover:border-purple-400 hover:bg-white hover:text-purple-600"
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-md dark:bg-[var(--accent)] dark:text-white" 
+                        : "border-[var(--border)] bg-white/70 text-[var(--ink-muted)] hover:border-purple-400 hover:bg-white hover:text-purple-600 dark:bg-gray-800/70 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-purple-400"
                     }`}
                   >
                     <span className="relative z-10">{tab}</span>
@@ -483,20 +483,20 @@ export default function MarketNewsPage() {
             </div>
             <div className="flex-1 space-y-3 max-h-[300px] overflow-y-auto pr-2">
               {sectorNews.map((item, index) => (
-                <div key={`${item.title}-${index}`} className="rounded-xl border border-[var(--border)] bg-white p-4 overflow-hidden hover:border-[var(--accent)] hover:shadow-sm transition-all cursor-pointer">
+                <div key={`${item.title}-${index}`} className="rounded-xl border border-[var(--border)] bg-white p-4 overflow-hidden hover:border-[var(--accent)] hover:shadow-sm transition-all cursor-pointer dark:bg-gray-800 dark:border-gray-600">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent-soft)] text-[var(--accent-strong)] text-xs font-bold">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent-soft)] text-[var(--accent-strong)] text-xs font-bold dark:bg-[var(--accent-soft)]/20">
                       {item.sector[0]}
                     </span>
-                    <div className="text-xs uppercase tracking-[0.2em] text-[var(--ink-muted)]">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[var(--ink-muted)] dark:text-gray-400">
                       {item.sector}
                     </div>
                   </div>
-                  <div className="text-sm font-semibold text-[var(--ink)] line-clamp-2 break-words leading-snug">
+                  <div className="text-sm font-semibold text-[var(--ink)] line-clamp-2 break-words leading-snug dark:text-gray-200">
                     {item.title}
                   </div>
-                  <div className="mt-2 text-xs text-[var(--ink-muted)] flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-[var(--ink-muted)]"></span>
+                  <div className="mt-2 text-xs text-[var(--ink-muted)] flex items-center gap-1 dark:text-gray-500">
+                    <span className="w-1 h-1 rounded-full bg-[var(--ink-muted)] dark:bg-gray-500"></span>
                     Source · {item.source}
                   </div>
                 </div>
@@ -529,47 +529,47 @@ export default function MarketNewsPage() {
               
               {/* AI Key Metrics */}
               <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="bg-[var(--accent-soft)] rounded-lg p-2 text-center">
-                  <div className="text-xs text-[var(--ink-muted)] mb-1">Risk Level</div>
-                  <div className="text-sm font-semibold text-[var(--accent)]">Moderate</div>
+                <div className="bg-[var(--accent-soft)] rounded-lg p-2 text-center dark:bg-[var(--accent-soft)]/20">
+                  <div className="text-xs text-[var(--ink-muted)] mb-1 dark:text-gray-400">Risk Level</div>
+                  <div className="text-sm font-semibold text-[var(--accent)] dark:text-[var(--accent)]">Moderate</div>
                 </div>
-                <div className="bg-[var(--accent-soft)] rounded-lg p-2 text-center">
-                  <div className="text-xs text-[var(--ink-muted)] mb-1">Volatility</div>
-                  <div className="text-sm font-semibold text-emerald-600">Low</div>
+                <div className="bg-[var(--accent-soft)] rounded-lg p-2 text-center dark:bg-[var(--accent-soft)]/20">
+                  <div className="text-xs text-[var(--ink-muted)] mb-1 dark:text-gray-400">Volatility</div>
+                  <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Low</div>
                 </div>
-                <div className="bg-[var(--accent-soft)] rounded-lg p-2 text-center">
-                  <div className="text-xs text-[var(--ink-muted)] mb-1">Trend</div>
-                  <div className="text-sm font-semibold text-blue-600">Bullish</div>
+                <div className="bg-[var(--accent-soft)] rounded-lg p-2 text-center dark:bg-[var(--accent-soft)]/20">
+                  <div className="text-xs text-[var(--ink-muted)] mb-1 dark:text-gray-400">Trend</div>
+                  <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">Bullish</div>
                 </div>
               </div>
               
               {/* Sector Breakdown */}
               <div className="space-y-2 mb-4">
-                <div className="text-xs text-[var(--ink-muted)] uppercase tracking-wider">Sector Strength</div>
+                <div className="text-xs text-[var(--ink-muted)] uppercase tracking-wider dark:text-gray-400">Sector Strength</div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs w-16">Financials</span>
-                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <span className="text-xs w-16 dark:text-gray-300">Financials</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-gray-700">
                     <div className="h-full w-3/4 bg-emerald-500 rounded-full" />
                   </div>
-                  <span className="text-xs font-medium text-emerald-600">75%</span>
+                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">75%</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs w-16">IT</span>
-                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <span className="text-xs w-16 dark:text-gray-300">IT</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-gray-700">
                     <div className="h-full w-1/2 bg-yellow-500 rounded-full" />
                   </div>
-                  <span className="text-xs font-medium text-yellow-600">50%</span>
+                  <span className="text-xs font-medium text-yellow-600 dark:text-yellow-400">50%</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs w-16">Energy</span>
-                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <span className="text-xs w-16 dark:text-gray-300">Energy</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-gray-700">
                     <div className="h-full w-1/3 bg-red-400 rounded-full" />
                   </div>
-                  <span className="text-xs font-medium text-red-500">33%</span>
+                  <span className="text-xs font-medium text-red-500 dark:text-red-400">33%</span>
                 </div>
               </div>
               
-              <div className="mt-auto rounded-xl border border-[var(--border)] bg-white/85 p-3 text-xs text-[var(--ink-muted)]">
+              <div className="mt-auto rounded-xl border border-[var(--border)] bg-white/85 p-3 text-xs text-[var(--ink-muted)] dark:bg-gray-800/85 dark:border-gray-600 dark:text-gray-400">
                 AI confidence: 76% · Signal strength: Moderate · Updated 5 min ago
               </div>
             </div>

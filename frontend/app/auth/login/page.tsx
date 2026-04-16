@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { fetchWithApiFallback } from "@/lib/api-base";
+import { useRouter } from "next/navigation";
 import { setToken, setUserEmail } from "@/lib/auth";
-import GoogleAuthButton from "@/app/google-auth-button";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,21 +18,21 @@ export default function LoginPage() {
     setError(null);
     try {
       setLoading(true);
-      const res = await fetchWithApiFallback("/api/v1/auth/login", {
+      const res = await fetch("http://localhost:8001/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `Login failed (${res.status})`);
-      }
       const data = await res.json();
+      if (!res.ok || data.detail) {
+        setError(data.detail || "Login failed. Please try again.");
+        return;
+      }
       setToken(data.access_token);
-      setUserEmail(email);
-      window.location.href = "/";
+      setUserEmail(data.user?.email ?? email.trim().toLowerCase());
+      router.replace("/");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError("Cannot connect to server. Make sure the backend is running.");
     } finally {
       setLoading(false);
     }
@@ -63,27 +63,46 @@ export default function LoginPage() {
           </p>
         </header>
 
-        <form onSubmit={onSubmit} className="panel p-5">
-          <label className="mb-1 block text-sm text-[var(--ink)]">Email</label>
+        <form onSubmit={onSubmit} className="panel p-5" noValidate>
+          <label className="mb-1 block text-sm text-[var(--ink)]" htmlFor="login-email">
+            Email
+          </label>
           <input
+            id="login-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
             className="mb-3 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "login-error" : undefined}
           />
 
-          <label className="mb-1 block text-sm text-[var(--ink)]">
+          <label
+            className="mb-1 block text-sm text-[var(--ink)]"
+            htmlFor="login-password"
+          >
             Password
           </label>
           <input
+            id="login-password"
+            name="password"
             type="password"
+            autoComplete="current-password"
+            required
             className="mb-4 w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "login-error" : undefined}
           />
 
           <button
+            type="submit"
             disabled={loading}
             className="w-full rounded-md bg-[var(--accent-strong)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent)] disabled:bg-[var(--border)]"
           >
@@ -91,12 +110,15 @@ export default function LoginPage() {
           </button>
 
           {error && (
-            <div className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700">
+            <div
+              id="login-error"
+              className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-700"
+              role="alert"
+              aria-live="polite"
+            >
               {error}
             </div>
           )}
-
-          <GoogleAuthButton onError={setError} mode="login" />
 
           <p className="mt-4 text-xs text-[var(--ink-muted)]">
             No account?{" "}

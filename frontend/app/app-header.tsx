@@ -3,11 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { memo } from "react";
 import AuthNav from "./auth-nav";
+import ThemeToggle from "@/components/theme-toggle";
 
 const HIDE_HEADER_ROUTES = ["/auth/login", "/auth/register"];
 
-export default function AppHeader() {
+function AppHeader() {
   const pathname = usePathname();
   const shouldHide = HIDE_HEADER_ROUTES.some((route) =>
     pathname?.startsWith(route),
@@ -46,9 +48,12 @@ export default function AppHeader() {
           </Link>
         </nav>
         <div className="app-auth">
+          <ThemeToggle size="sm" />
           <AuthNav />
         </div>
       </div>
     </header>
   );
 }
+
+export default memo(AppHeader);

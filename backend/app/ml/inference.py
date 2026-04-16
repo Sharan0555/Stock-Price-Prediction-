@@ -7,6 +7,7 @@ Changes from original:
   - LSTMStockModel.predict_sequence receives (30, 6) — no reshape to (30,1)
   - Baseline prediction logic is unchanged (kept as safety net)
   - Ensemble weights adjusted: 55% baseline / 45% LSTM (model is now stronger)
+  - Uses model registry for ticker-specific models
 """
 from __future__ import annotations
 
@@ -17,19 +18,31 @@ import numpy as np
 
 from app.core.config import settings
 from app.ml.features import build_feature_matrix, N_FEATURES
+from app.ml.model_registry import get, load_all
 
 
 class PredictionEngine:
     def __init__(self) -> None:
         self._lstm_model = None
-        # Pre-load model at startup to avoid first-request hang
+        self._models_loaded = False
+        # Pre-load generic LSTM at startup
         try:
             from app.ml.models.lstm_model import LSTMStockModel
             self._lstm_model = LSTMStockModel()
-            print("[PredictionEngine] Model pre-loaded OK")
+            print("[PredictionEngine] Generic LSTM pre-loaded OK")
         except Exception as exc:
-            print(f"[PredictionEngine] Pre-load failed: {exc}")
-            self._lstm_model = "unavailable" 
+            print(f"[PredictionEngine] Generic LSTM pre-load failed: {exc}")
+            self._lstm_model = "unavailable"
+
+    def _ensure_models_loaded(self):
+        """Lazy load models from registry on first prediction"""
+        if not self._models_loaded:
+            try:
+                load_all()
+                self._models_loaded = True
+                print("[PredictionEngine] Model registry loaded OK")
+            except Exception as exc:
+                print(f"[PredictionEngine] Model registry load failed: {exc}") 
 
     # ── feature preparation ───────────────────────────────────────────────────
 
@@ -107,7 +120,11 @@ class PredictionEngine:
         self,
         closes: List[float],
         volumes: List[float] | None = None,
+        symbol: str | None = None,
     ) -> Dict[str, float]:
+        # Ensure models are loaded from registry
+        self._ensure_models_loaded()
+        
         series = np.asarray(closes, dtype=float)
         if series.ndim > 1:
             series = np.ravel(series)
@@ -120,32 +137,63 @@ class PredictionEngine:
         recent_returns = returns[-30:] if returns.size > 30 else returns
         vol = float(np.std(recent_returns)) if recent_returns.size > 0 else 0.0
 
-        # Lazy-load LSTM
-        if self._lstm_model is None and not settings.LOCAL_DATA_ONLY:
-            try:
-                model_path = Path(__file__).resolve().parent / "artifacts" / "lstm_stock_price.h5"
-                if not model_path.exists():
-                    raise FileNotFoundError("LSTM artifact missing — run train_lstm.py first")
-                from app.ml.models.lstm_model import LSTMStockModel
-                self._lstm_model = LSTMStockModel()
-            except Exception as exc:
-                print(f"[PredictionEngine] LSTM unavailable: {exc}")
-                self._lstm_model = "unavailable"
-        elif settings.LOCAL_DATA_ONLY:
-            self._lstm_model = "unavailable"
-
-        # Build 6-feature window
-        vol_arr = np.asarray(volumes, dtype=float) if volumes else None
-        feature_window = self._prepare_features(series, vol_arr, window=30)  # (30, 6)
-
-        if self._lstm_model == "unavailable":
-            lstm_pred = baseline_pred
+        # Try to use ticker-specific model from registry
+        lstm_pred = baseline_pred
+        if symbol:
+            ticker_model = get(symbol.upper())
+            if ticker_model and ticker_model['model']:
+                try:
+                    # Build 6-feature window
+                    vol_arr = np.asarray(volumes, dtype=float) if volumes else None
+                    feature_window = self._prepare_features(series, vol_arr, window=30)
+                    
+                    # Use ticker-specific model
+                    import tensorflow as tf
+                    model = ticker_model['model']
+                    scalers = ticker_model.get('scalers', {})
+                    
+                    # Scale features using scalers if available
+                    if scalers:
+                        feature_window = self._apply_scalers(feature_window, scalers)
+                    
+                    # Reshape for model prediction (1, 30, 6)
+                    window_input = feature_window[np.newaxis, ...]
+                    raw_pred = model.predict(window_input, verbose=0)[0, 0]
+                    
+                    # Inverse scale if needed
+                    if 'close_scaler' in scalers:
+                        raw_pred = self._inverse_scale(raw_pred, scalers['close_scaler'])
+                    
+                    lstm_pred = self._sanitize_prediction(raw_pred, last, baseline_pred, vol)
+                    print(f"[PredictionEngine] Used ticker-specific model for {symbol}")
+                except Exception as exc:
+                    print(f"[PredictionEngine] Ticker model prediction failed: {exc}")
+                    lstm_pred = baseline_pred
+            else:
+                print(f"[PredictionEngine] No model found for {symbol}, using generic LSTM")
+                # Fall back to generic LSTM
+                if self._lstm_model and self._lstm_model != "unavailable":
+                    try:
+                        vol_arr = np.asarray(volumes, dtype=float) if volumes else None
+                        feature_window = self._prepare_features(series, vol_arr, window=30)
+                        raw_pred = self._lstm_model.predict_sequence(feature_window) * last
+                        lstm_pred = self._sanitize_prediction(raw_pred, last, baseline_pred, vol)
+                    except Exception as exc:
+                        print(f"[PredictionEngine] Generic LSTM prediction failed: {exc}")
+                        lstm_pred = baseline_pred
         else:
-            # predict_sequence now receives (30, 6) — see lstm_model.py update
-            raw_pred = self._lstm_model.predict_sequence(feature_window) * last  # type: ignore
-            lstm_pred = self._sanitize_prediction(raw_pred, last, baseline_pred, vol)
+            # No symbol provided, use generic LSTM
+            if self._lstm_model and self._lstm_model != "unavailable":
+                try:
+                    vol_arr = np.asarray(volumes, dtype=float) if volumes else None
+                    feature_window = self._prepare_features(series, vol_arr, window=30)
+                    raw_pred = self._lstm_model.predict_sequence(feature_window) * last
+                    lstm_pred = self._sanitize_prediction(raw_pred, last, baseline_pred, vol)
+                except Exception as exc:
+                    print(f"[PredictionEngine] Generic LSTM prediction failed: {exc}")
+                    lstm_pred = baseline_pred
 
-        # Ensemble: 55% baseline + 45% LSTM (model is stronger now)
+        # Ensemble: 40% baseline + 60% LSTM (model is stronger now)
         ensemble_pred = (0.40 * baseline_pred) + (0.60 * lstm_pred)
 
         expected_move = min(0.01, max(0.003, vol * 2.0))
@@ -157,6 +205,19 @@ class PredictionEngine:
             "lstm": lstm_pred,
             "ensemble": ensemble_pred,
         }
+
+    def _apply_scalers(self, features: np.ndarray, scalers: dict) -> np.ndarray:
+        """Apply scalers to feature window if available"""
+        # Simple scaling - can be enhanced based on actual scaler structure
+        if 'mean' in scalers and 'std' in scalers:
+            return (features - scalers['mean']) / scalers['std']
+        return features
+
+    def _inverse_scale(self, value: float, scaler: dict) -> float:
+        """Inverse scale a prediction value"""
+        if 'mean' in scaler and 'std' in scaler:
+            return value * scaler['std'] + scaler['mean']
+        return value
 
 
 prediction_engine = PredictionEngine()

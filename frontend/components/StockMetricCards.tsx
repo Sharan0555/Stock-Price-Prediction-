@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import { useLivePrice, useLivePricePolled } from "@/hooks/useLivePrice";
 
@@ -24,7 +24,7 @@ function fmtPct(val: number) {
   return `${val >= 0 ? "+" : ""}${val.toFixed(2)}%`;
 }
 
-export default function StockMetricCards({
+const StockMetricCards = memo(function StockMetricCards({
   lastClose,
   predictedPrice,
   upsidePct,
@@ -271,4 +271,6 @@ export default function StockMetricCards({
       `}</style>
     </>
   );
-}
+});
+
+export default StockMetricCards;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from "react";
 
 interface TickerCardProps {
   sym: string;
@@ -33,7 +33,7 @@ const buildSeedSpark = (price: number, up: boolean) =>
     return price * (1 + slope * 0.0035);
   });
 
-export default function TickerCard({
+const TickerCard = memo(function TickerCard({
   sym,
   price,
   chg,
@@ -221,4 +221,6 @@ export default function TickerCard({
       />
     </div>
   );
-}
+});
+
+export default TickerCard;
