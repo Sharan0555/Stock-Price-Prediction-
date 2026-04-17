@@ -40,12 +40,20 @@ class ModelTrainer:
             list(closes),
             list(volumes) if volumes is not None else None,
         )
-        return {key: round(float(value), 4) for key, value in result.items()}
+        # Round all values except signal which is a string
+        rounded_result = {}
+        for key, value in result.items():
+            if key == "signal":
+                rounded_result[key] = value
+            else:
+                rounded_result[key] = round(float(value), 4)
+        return rounded_result
 
     def compute_risk_profile(
         self,
         closes: Sequence[float],
         predicted: float,
+        signal: str | None = None,
     ) -> dict[str, float | str]:
         arr = np.asarray(list(closes), dtype=float)
         if arr.size == 0:
@@ -64,16 +72,24 @@ class ModelTrainer:
             level = "high"
 
         change_pct = (predicted - last_price) / last_price * 100 if last_price else 0.0
-        trend_pct = 0.0
-        if arr.size >= 15 and arr[-15] != 0:
-            trend_pct = float((arr[-1] - arr[-15]) / arr[-15] * 100)
+        
+        # Use provided corrected signal, or compute if not available
+        if signal is None:
+            trend_pct = 0.0
+            if arr.size >= 15 and arr[-15] != 0:
+                trend_pct = float((arr[-1] - arr[-15]) / arr[-15] * 100)
 
-        if trend_pct >= 0.75 or (change_pct >= 0.35 and level != "high"):
-            signal: Literal["BUY", "HOLD", "SELL"] = "BUY"
-        elif trend_pct <= -0.75 or (change_pct <= -0.35 and level == "high"):
-            signal = "SELL"
+            if trend_pct >= 0.75 or (change_pct >= 0.35 and level != "high"):
+                signal: Literal["BUY", "HOLD", "SELL"] = "BUY"
+            elif trend_pct <= -0.75 or (change_pct <= -0.35 and level == "high"):
+                signal = "SELL"
+            else:
+                signal = "HOLD"
         else:
-            signal = "HOLD"
+            # Use the corrected signal provided by the prediction engine
+            # Ensure it's a valid signal
+            if signal not in ["BUY", "HOLD", "SELL"]:
+                signal = "HOLD"
 
         return {
             "score": round(score, 2),

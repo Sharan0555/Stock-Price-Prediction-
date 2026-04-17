@@ -39,7 +39,7 @@ class RiskInfo(BaseModel):
     change_pct: float
 
 
-def _compute_risk_and_signal(closes: List[float], predicted: float) -> RiskInfo:
+def _compute_risk_and_signal(closes: List[float], predicted: float, signal: str | None = None) -> RiskInfo:
     import numpy as np
 
     arr = np.asarray(closes, dtype=float)
@@ -58,17 +58,24 @@ def _compute_risk_and_signal(closes: List[float], predicted: float) -> RiskInfo:
 
     change_pct = (predicted - last_price) / last_price * 100 if last_price else 0.0
 
-    trend_pct = 0.0
-    if arr.size >= 15 and arr[-15] != 0:
-        trend_pct = float((arr[-1] - arr[-15]) / arr[-15] * 100)
+    # Use provided corrected signal, or compute if not available
+    if signal is None:
+        trend_pct = 0.0
+        if arr.size >= 15 and arr[-15] != 0:
+            trend_pct = float((arr[-1] - arr[-15]) / arr[-15] * 100)
 
-    # Bias toward a clear BUY/SELL so the UI isn't stuck on "SELL" for mild dips.
-    if trend_pct >= 0.75 or (change_pct >= 0.35 and level != "high"):
-        signal: Literal["BUY", "HOLD", "SELL"] = "BUY"
-    elif trend_pct <= -0.75 or (change_pct <= -0.35 and level == "high"):
-        signal = "SELL"
+        # Bias toward a clear BUY/SELL so the UI isn't stuck on "SELL" for mild dips.
+        if trend_pct >= 0.75 or (change_pct >= 0.35 and level != "high"):
+            signal: Literal["BUY", "HOLD", "SELL"] = "BUY"
+        elif trend_pct <= -0.75 or (change_pct <= -0.35 and level == "high"):
+            signal = "SELL"
+        else:
+            signal = "BUY" if trend_pct >= 0 else "SELL"
     else:
-        signal = "BUY" if trend_pct >= 0 else "SELL"
+        # Use corrected signal provided by prediction engine
+        # Ensure it's a valid signal
+        if signal not in ["BUY", "HOLD", "SELL"]:
+            signal = "HOLD"
 
     return RiskInfo(
         score=round(score, 2),
@@ -93,7 +100,7 @@ def predict_price(body: PredictionRequestBody = Body(...)) -> dict:
         result = prediction_engine.predict_next_price(body.closes, symbol=body.symbol)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    risk = _compute_risk_and_signal(body.closes, result["ensemble"])
+    risk = _compute_risk_and_signal(body.closes, result["ensemble"], result.get("signal"))
     response = {
         "symbol": body.symbol.upper(),
         "predictions": result,

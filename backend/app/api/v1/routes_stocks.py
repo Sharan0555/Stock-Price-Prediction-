@@ -1102,6 +1102,45 @@ async def list_symbols(
     }
 
 
+@router.get("/bulk")
+async def get_bulk_quotes(
+    symbols: str = Query(..., min_length=1, description="Comma-separated stock symbols"),
+    yfinance: YFinanceService = Depends(get_yfinance_service),
+) -> dict:
+    """
+    Fetch multiple stock quotes concurrently using yfinance.
+    Accepts comma-separated symbols query parameter.
+    Returns: {"stocks": [{"symbol": "AAPL", "quote": {...}, "source": "yfinance"}, ...]}
+    """
+    # Parse symbols from comma-separated string
+    symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not symbol_list:
+        raise HTTPException(status_code=400, detail="At least one symbol is required.")
+    if len(symbol_list) > 50:
+        raise HTTPException(status_code=400, detail="Maximum 50 symbols allowed per request.")
+
+    # Fetch quotes concurrently
+    quotes = await yfinance.get_multiple_quotes_async(symbol_list, is_inr=False)
+
+    # Format response
+    stocks = []
+    for symbol in symbol_list:
+        if symbol in quotes:
+            stocks.append({
+                "symbol": symbol,
+                "quote": quotes[symbol],
+                "source": "yfinance"
+            })
+        else:
+            stocks.append({
+                "symbol": symbol,
+                "quote": None,
+                "source": "unavailable"
+            })
+
+    return {"stocks": stocks}
+
+
 @router.get("/fx/inr")
 async def get_inr_exchange_rate(
     base: str = Query("USD", min_length=3, max_length=5),

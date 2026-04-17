@@ -24,6 +24,9 @@ from app.routes.finnhub_ws import router as finnhub_ws_router, finnhub_listener
 from app.routes.news import router as news_router
 from app.services.alpha_vantage_service import AlphaVantageService
 from app.services.live_price_service import LivePriceService
+from app.services.yfinance_service import YFinanceService
+
+PREWARM_SYMBOLS = ["AAPL", "TSLA", "GOOGL", "MSFT", "AMZN", "NVDA", "META", "NFLX", "AMD", "BABA"]
 
 DEFAULT_CORS_ORIGINS = [
     "*",
@@ -55,21 +58,34 @@ def _ensure_default_models() -> None:
             print(f"[startup] Failed to train {ticker}: {exc}")
 
 
+def _prewarm_stock_cache():
+    """Pre-warm stock cache for popular symbols on startup."""
+    try:
+        yf_service = YFinanceService()
+        yf_service.get_multiple_quotes(PREWARM_SYMBOLS, is_inr=False)
+    except Exception as exc:
+        print(f"[startup] Cache pre-warm warning (non-critical): {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_all()
     live_price_service = LivePriceService()
     alpha_vantage_service = AlphaVantageService()
     sentiment_service = SentimentService()
+    yfinance_service = YFinanceService()
 
     app.state.live_price_service = live_price_service
     app.state.alpha_vantage_service = alpha_vantage_service
     app.state.sentiment_service = sentiment_service
+    app.state.yfinance_service = yfinance_service
 
     if not os.getenv("PYTEST_CURRENT_TEST"):
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, sentiment_service.preload)
         await loop.run_in_executor(None, _ensure_default_models)
+        # Pre-warm stock cache concurrently
+        await loop.run_in_executor(None, _prewarm_stock_cache)
 
     background_tasks = [
         asyncio.create_task(live_price_service.run(), name="live-price-feed"),

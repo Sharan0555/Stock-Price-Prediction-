@@ -7,9 +7,14 @@ import { clearToken, getToken, getUserEmail } from "@/lib/auth";
 
 export default function AuthNav() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const isAuthed = useMemo(() => {
     if (!pathname) return false;
@@ -79,7 +84,7 @@ export default function AuthNav() {
           ▾
         </span>
       </button>
-      {menuOpen && (
+      {isMounted && menuOpen && (
         <div className="auth-dropdown" role="menu">
           <div className="auth-dropdown__name">{displayName}</div>
           <div className="auth-email">{userEmail ?? "Signed in"}</div>

@@ -1,14 +1,34 @@
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 import pytz
 import yfinance as yf
 
-_executor = ThreadPoolExecutor(max_workers=4)
+_executor = ThreadPoolExecutor(max_workers=10)
+
+# Module-level in-memory cache for stock quotes
+_stock_cache: dict[str, tuple[float, dict]] = {}
+CACHE_TTL_SECONDS = 60
+
+
+def _cache_get(symbol: str) -> dict | None:
+    """Get cached stock data if not expired."""
+    cached = _stock_cache.get(symbol.upper())
+    if cached:
+        timestamp, data = cached
+        if time.time() - timestamp < CACHE_TTL_SECONDS:
+            return data
+    return None
+
+
+def _cache_set(symbol: str, data: dict) -> None:
+    """Cache stock data with current timestamp."""
+    _stock_cache[symbol.upper()] = (time.time(), data)
 
 
 class YFinanceService:
@@ -247,6 +267,11 @@ class YFinanceService:
         }
 
     async def get_quote(self, symbol: str, *, is_inr: bool = False) -> dict:
+        # Check cache first
+        cached = _cache_get(symbol)
+        if cached:
+            return cached
+
         candidates = self._inr_candidates(symbol) if is_inr else [symbol.upper().strip()]
         loop = asyncio.get_event_loop()
         for candidate in candidates:
@@ -256,5 +281,57 @@ class YFinanceService:
                 lambda: self._get_quote_sync(c, is_inr=is_inr),
             )
             if quote and quote.get("c", 0.0) != 0.0:
+                _cache_set(symbol, quote)
                 return quote
         return {}
+
+    def _get_quote_sync_cached(self, symbol: str, *, is_inr: bool = False) -> dict:
+        """Synchronous quote fetch with caching - used for bulk operations."""
+        cached = _cache_get(symbol)
+        if cached:
+            return cached
+
+        candidates = self._inr_candidates(symbol) if is_inr else [symbol.upper().strip()]
+        for candidate in candidates:
+            quote = self._get_quote_sync(candidate, is_inr=is_inr)
+            if quote and quote.get("c", 0.0) != 0.0:
+                _cache_set(symbol, quote)
+                return quote
+        return {}
+
+    def get_multiple_quotes(self, symbols: list[str], *, is_inr: bool = False) -> dict[str, dict]:
+        """Fetch multiple stock quotes concurrently using ThreadPoolExecutor.
+
+        Args:
+            symbols: List of stock symbols to fetch
+            is_inr: Whether symbols are Indian stocks
+
+        Returns:
+            Dict mapping symbol to quote data
+        """
+        results: dict[str, dict] = {}
+        if not symbols:
+            return results
+
+        # Use ThreadPoolExecutor for concurrent fetching
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(self._get_quote_sync_cached, sym, is_inr): sym
+                for sym in symbols
+            }
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    quote = future.result()
+                    if quote and quote.get("c", 0.0) != 0.0:
+                        results[symbol] = quote
+                except Exception:
+                    # Skip failed symbols
+                    pass
+
+        return results
+
+    async def get_multiple_quotes_async(self, symbols: list[str], *, is_inr: bool = False) -> dict[str, dict]:
+        """Async wrapper for get_multiple_quotes."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(_executor, self.get_multiple_quotes, symbols, is_inr)

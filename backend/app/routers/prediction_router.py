@@ -46,7 +46,7 @@ class PredictionSnapshotResponse(BaseModel):
     history_source: str
     quote: QuotePayload
     history: list[HistoryPoint]
-    predictions: dict[str, float]
+    predictions: dict[str, float | str]
     risk: dict[str, float | str]
     indicators: dict[str, float | str | None]
 
@@ -292,7 +292,7 @@ async def get_prediction_snapshot(
         )
 
     predictions = _model_trainer.predict(closes)
-    risk = _model_trainer.compute_risk_profile(closes, predictions["ensemble"])
+    risk = _model_trainer.compute_risk_profile(closes, predictions["ensemble"], predictions.get("signal"))
     indicators = _feature_engineering.summarize_indicators(history)
 
     return PredictionSnapshotResponse(

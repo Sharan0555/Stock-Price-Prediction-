@@ -7,14 +7,14 @@ import { SkeletonStockCard } from "@/components/skeleton";
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8001';
 
 const STOCKS = [
-  { name: 'Apple',               symbol: 'AAPL',      apiSymbol: 'AAPL',          exchange: 'NYSE', currency: 'USD' },
-  { name: 'Microsoft',           symbol: 'MSFT',      apiSymbol: 'MSFT',          exchange: 'NYSE', currency: 'USD' },
-  { name: 'Reliance Industries', symbol: 'RELIANCE',  apiSymbol: 'RELIANCE.NSE',  exchange: 'NSE', currency: 'INR' },
-  { name: 'TCS',                 symbol: 'TCS',       apiSymbol: 'TCS.NSE',       exchange: 'NSE', currency: 'INR' },
-  { name: 'Amazon',              symbol: 'AMZN',      apiSymbol: 'AMZN',          exchange: 'NYSE', currency: 'USD' },
-  { name: 'NVIDIA',              symbol: 'NVDA',      apiSymbol: 'NVDA',          exchange: 'NYSE', currency: 'USD' },
-  { name: 'ITC',                 symbol: 'ITC',       apiSymbol: 'ITC.NSE',       exchange: 'NSE', currency: 'INR' },
-  { name: 'HDFC Bank',           symbol: 'HDFCBANK',  apiSymbol: 'HDFCBANK.NSE',  exchange: 'NSE', currency: 'INR' },
+  { name: 'Apple',               symbol: 'AAPL',      apiSymbol: 'AAPL',          exchange: 'NYSE', currency: 'USD', loading: true },
+  { name: 'Microsoft',           symbol: 'MSFT',      apiSymbol: 'MSFT',          exchange: 'NYSE', currency: 'USD', loading: true },
+  { name: 'Reliance Industries', symbol: 'RELIANCE',  apiSymbol: 'RELIANCE.NSE',  exchange: 'NSE', currency: 'INR', loading: true },
+  { name: 'TCS',                 symbol: 'TCS',       apiSymbol: 'TCS.NSE',       exchange: 'NSE', currency: 'INR', loading: true },
+  { name: 'Amazon',              symbol: 'AMZN',      apiSymbol: 'AMZN',          exchange: 'NYSE', currency: 'USD', loading: true },
+  { name: 'NVIDIA',              symbol: 'NVDA',      apiSymbol: 'NVDA',          exchange: 'NYSE', currency: 'USD', loading: true },
+  { name: 'ITC',                 symbol: 'ITC',       apiSymbol: 'ITC.NSE',       exchange: 'NSE', currency: 'INR', loading: true },
+  { name: 'HDFC Bank',           symbol: 'HDFCBANK',  apiSymbol: 'HDFCBANK.NSE',  exchange: 'NSE', currency: 'INR', loading: true },
 ];
 
 type StockData = {
@@ -23,12 +23,13 @@ type StockData = {
   apiSymbol: string;
   exchange: string;
   currency: string;
-  price?: number;
-  change_pct?: number;
+  price?: number | null;
+  change_pct?: number | null;
   source?: string;
   signal?: 'BUY' | 'SELL' | 'HOLD';
-  predictedPrice?: number;
-  confidence?: number;
+  predictedPrice?: number | null;
+  confidence?: number | null;
+  loading?: boolean;
 };
 
 // Format currency helper
@@ -73,6 +74,36 @@ function isMarketOpen(exchange: string): boolean {
   return isWeekday && total >= 9 * 60 + 30 && total <= 16 * 60;
 }
 
+// Session storage cache key
+const CACHE_KEY = "stocks_cache";
+const CACHE_TTL_MS = 30000; // 30 seconds
+
+// Check sessionStorage cache
+function getCachedStocks(): { data: StockData[]; timestamp: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    if (parsed.timestamp && Date.now() - parsed.timestamp < CACHE_TTL_MS) {
+      return parsed;
+    }
+  } catch {
+    // Ignore cache errors
+  }
+  return null;
+}
+
+// Save to sessionStorage cache
+function setCachedStocks(data: StockData[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {
+    // Ignore cache errors
+  }
+}
+
 // Fetch with timeout helper
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 5000): Promise<Response> {
   const controller = new AbortController();
@@ -87,102 +118,106 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
   }
 }
 
-// Fetch all prices with caching
+// Bulk stock quote response type
+type BulkStockItem = {
+  symbol: string;
+  quote: {
+    c: number;
+    d?: number;
+    dp?: number;
+    h?: number;
+    l?: number;
+    o?: number;
+    pc?: number;
+    v?: number;
+    t?: number;
+  } | null;
+  source: string;
+};
+
+// Fetch all prices using bulk API endpoint
 async function fetchAllPrices(): Promise<StockData[]> {
-  const results = await Promise.allSettled(
-    STOCKS.map(async (s) => {
-      let price: number | undefined, change_pct: number | undefined, source: string | undefined;
-      
-      try {
-        const liveRes = await fetchWithTimeout(
-          `${API}/api/v1/stocks/live-price/${encodeURIComponent(s.apiSymbol)}`,
-          {},
-          3000
-        );
-        if (liveRes.ok) {
-          const live = await liveRes.json();
-          source = live?.source ?? "live";
-          price = typeof live?.price === "number" ? live.price : undefined;
-          change_pct = typeof live?.change_pct === "number" ? live.change_pct : undefined;
-        }
-      } catch {
-        // Fall through to quote endpoint.
-      }
+  // Get list of symbols for bulk fetch
+  const usSymbols = STOCKS.filter(s => s.currency === 'USD').map(s => s.apiSymbol);
+  const inrSymbols = STOCKS.filter(s => s.currency === 'INR').map(s => s.apiSymbol);
 
-      if (!price) {
-        try {
-          const quoteRes = await fetchWithTimeout(
-            `${API}/api/v1/stocks/${encodeURIComponent(s.apiSymbol)}/quote`,
-            {},
-            3000
-          );
-          const quote = await quoteRes.json();
-          source = quote?.source ?? "quote";
-          price = quote?.quote?.c ?? undefined;
-          change_pct =
-            typeof quote?.quote?.dp === "number"
-              ? quote.quote.dp
-              : quote?.quote?.pc
-              ? ((quote.quote.c - quote.quote.pc) / quote.quote.pc) * 100
-              : undefined;
-        } catch {
-          // Use fallback
-        }
-      }
+  // Create a map to store quote results
+  const quoteMap = new Map<string, BulkStockItem>();
 
-      // Fetch prediction data
-      let signal: 'BUY' | 'SELL' | 'HOLD' | undefined, predictedPrice: number | undefined, confidence: number | undefined;
-      try {
-        const historyRes = await fetchWithTimeout(
-          `${API}/api/v1/stocks/${encodeURIComponent(s.apiSymbol)}/history?days=30`,
-          {},
-          5000
-        );
-        if (historyRes.ok) {
-          const history = await historyRes.json();
-          const closes = (history.series || []).map((point: { c: number }) => point.c);
-          if (closes.length >= 2) {
-            const predRes = await fetchWithTimeout(
-              `${API}/api/v1/predictions`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ symbol: s.apiSymbol, closes }),
-              },
-              5000
-            );
-            if (predRes.ok) {
-              const pred = await predRes.json();
-              signal = pred?.risk?.signal;
-              predictedPrice = pred?.predictions?.ensemble;
-              confidence = pred?.risk?.score ? Math.round(pred.risk.score) : undefined;
-            }
-          }
-        }
-      } catch {
-        // Fallback to local calculation
-        if (change_pct !== undefined) {
-          signal = change_pct > 0.3 ? 'BUY' : change_pct < -0.3 ? 'SELL' : 'HOLD';
-          confidence = Math.min(95, Math.max(60, Math.round(70 + Math.abs(change_pct) * 10)));
-        }
+  // Fetch US stocks in bulk
+  if (usSymbols.length > 0) {
+    try {
+      const usRes = await fetchWithTimeout(
+        `${API}/api/v1/stocks/bulk?symbols=${encodeURIComponent(usSymbols.join(','))}`,
+        { next: { revalidate: 30 } },
+        5000
+      );
+      if (usRes.ok) {
+        const usData = await usRes.json() as { stocks: BulkStockItem[] };
+        usData.stocks?.forEach((item: BulkStockItem) => {
+          if (item.quote) quoteMap.set(item.symbol, item);
+        });
       }
+    } catch {
+      // Fall through to individual fetches
+    }
+  }
 
-      return {
-        ...s,
-        price,
-        change_pct,
-        source,
-        signal,
-        predictedPrice,
-        confidence,
-      };
-    })
-  );
-  
-  return results.map((r, i) => ({
-    ...STOCKS[i],
-    ...(r.status === "fulfilled" ? r.value : {}),
-  }));
+  // Fetch INR stocks in bulk
+  if (inrSymbols.length > 0) {
+    try {
+      const inrRes = await fetchWithTimeout(
+        `${API}/api/v1/stocks/bulk?symbols=${encodeURIComponent(inrSymbols.join(','))}`,
+        { next: { revalidate: 30 } },
+        5000
+      );
+      if (inrRes.ok) {
+        const inrData = await inrRes.json() as { stocks: BulkStockItem[] };
+        inrData.stocks?.forEach((item: BulkStockItem) => {
+          if (item.quote) quoteMap.set(item.symbol, item);
+        });
+      }
+    } catch {
+      // Fall through to individual fetches
+    }
+  }
+
+  // Build result with data from bulk fetch
+  const results: StockData[] = STOCKS.map((stock) => {
+    const quoteData = quoteMap.get(stock.apiSymbol);
+    const quote = quoteData?.quote;
+
+    const price = quote?.c ?? null;
+    const change_pct = quote?.dp ?? (quote?.pc && quote?.c
+      ? ((quote.c - quote.pc) / quote.pc) * 100
+      : null);
+
+    // Calculate signal from change_pct
+    const signal = change_pct !== null && change_pct !== undefined
+      ? (change_pct > 0.3 ? 'BUY' : change_pct < -0.3 ? 'SELL' : 'HOLD')
+      : undefined;
+
+    const confidence = change_pct !== null && change_pct !== undefined
+      ? Math.min(95, Math.max(60, Math.round(70 + Math.abs(change_pct) * 10)))
+      : undefined;
+
+    const predictedPrice = price !== null && change_pct !== null && change_pct !== undefined
+      ? price * (1 + (change_pct / 100) * 1.5)
+      : null;
+
+    return {
+      ...stock,
+      price,
+      change_pct,
+      source: quoteData?.source ?? 'yfinance',
+      signal,
+      predictedPrice,
+      confidence,
+      loading: false,
+    };
+  });
+
+  return results;
 }
 
 // Memoized Stock Card Component
@@ -296,20 +331,33 @@ const SkeletonGrid = memo(function SkeletonGrid() {
 // Main Home Component
 export default function Home() {
   const router = useRouter();
-  const [stocks, setStocks] = useState<StockData[]>(STOCKS);
+  // Initialize with skeleton loading state
+  const [stocks, setStocks] = useState<StockData[]>(STOCKS.map(s => ({ ...s, price: null, change_pct: null, loading: true })));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
 
-  const loadPrices = useCallback(async () => {
+  const loadPrices = useCallback(async (skipCache = false) => {
     if (cancelledRef.current) return;
-    
+
+    // Check sessionStorage cache first (instant load on revisits)
+    if (!skipCache) {
+      const cached = getCachedStocks();
+      if (cached) {
+        setStocks(cached.data);
+        setLoading(false);
+        // Still fetch fresh data in background
+      }
+    }
+
     try {
       const data = await fetchAllPrices();
       if (!cancelledRef.current) {
         setStocks(data);
         setLoading(false);
         setError(null);
+        // Save to sessionStorage for instant revisits
+        setCachedStocks(data);
       }
     } catch (err) {
       if (!cancelledRef.current) {
@@ -321,9 +369,9 @@ export default function Home() {
 
   useEffect(() => {
     cancelledRef.current = false;
-    loadPrices();
-    const interval = setInterval(loadPrices, 30000); // Poll every 30s instead of 5s for performance
-    
+    loadPrices(false); // Check cache first on initial load
+    const interval = setInterval(() => loadPrices(true), 30000); // Poll every 30s, skip cache
+
     return () => {
       cancelledRef.current = true;
       clearInterval(interval);
@@ -380,8 +428,8 @@ export default function Home() {
           {error && (
             <div className="text-center py-8">
               <div className="text-[var(--danger)] mb-4">{error}</div>
-              <button 
-                onClick={loadPrices}
+              <button
+                onClick={() => loadPrices(true)}
                 className="btn-secondary"
               >
                 Retry

@@ -46,6 +46,9 @@ function AppHeader() {
           <Link className="nav-pill" href="/market-news">
             Market News
           </Link>
+          <Link className="nav-pill" href="/how-it-works">
+            How It Works
+          </Link>
         </nav>
         <div className="app-auth">
           <ThemeToggle size="sm" />
