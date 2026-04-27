@@ -3,6 +3,7 @@ import json
 import os
 from contextlib import asynccontextmanager, suppress
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,17 +20,31 @@ from app.ml.sentiment_service import SentimentService
 from app.ml.model_trainer import ModelTrainer
 from app.routers.prediction_router import router as prediction_router
 from app.routers.websocket_router import router as websocket_router
+from app.routers.alerts import router as alerts_router
 from app.routes.prices import router as prices_router
 from app.routes.finnhub_ws import router as finnhub_ws_router, finnhub_listener
 from app.routes.news import router as news_router
 from app.services.alpha_vantage_service import AlphaVantageService
+from app.services.alert_service import AlertService
 from app.services.live_price_service import LivePriceService
 from app.services.yfinance_service import YFinanceService
 
-PREWARM_SYMBOLS = ["AAPL", "TSLA", "GOOGL", "MSFT", "AMZN", "NVDA", "META", "NFLX", "AMD", "BABA"]
+PREWARM_SYMBOLS = [
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "NVDA",
+    "RELIANCE.NS",
+    "TCS.NS",
+    "ITC.NS",
+    "HDFCBANK.NS",
+]
 
 DEFAULT_CORS_ORIGINS = [
-    "*",
+    "https://stock-price-prediction-5087a.web.app",
+    "https://stock-price-prediction-5087a.firebaseapp.com",
+    "https://stockprediction-5fc07.web.app",
+    "https://stockprediction-5fc07.firebaseapp.com",
     "http://localhost",
     "http://127.0.0.1",
     "http://localhost:3000",
@@ -67,6 +82,30 @@ def _prewarm_stock_cache():
         print(f"[startup] Cache pre-warm warning (non-critical): {exc}")
 
 
+def setup_alert_scheduler():
+    """Setup the background scheduler for alert evaluation."""
+    scheduler = AsyncIOScheduler()
+    alert_service = AlertService()
+    
+    async def evaluate_alerts_job():
+        """Background job to evaluate alerts."""
+        try:
+            from app.db.postgres import SessionLocal
+            db = SessionLocal()
+            try:
+                triggered_notifications = alert_service.evaluate_alerts(db)
+                if triggered_notifications:
+                    print(f"[alerts] {len(triggered_notifications)} alerts triggered")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"[alerts] Error in alert evaluation: {e}")
+    
+    # Schedule alert evaluation every 60 seconds
+    scheduler.add_job(evaluate_alerts_job, "interval", seconds=60, id="alert_evaluation")
+    return scheduler
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_all()
@@ -87,6 +126,11 @@ async def lifespan(app: FastAPI):
         # Pre-warm stock cache concurrently
         await loop.run_in_executor(None, _prewarm_stock_cache)
 
+    # Setup alert scheduler
+    alert_scheduler = setup_alert_scheduler()
+    alert_scheduler.start()
+    app.state.alert_scheduler = alert_scheduler
+
     background_tasks = [
         asyncio.create_task(live_price_service.run(), name="live-price-feed"),
         asyncio.create_task(finnhub_listener(), name="legacy-finnhub-feed"),
@@ -96,6 +140,10 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Shutdown scheduler
+        alert_scheduler.shutdown()
+        
+        # Cancel background tasks
         for task in background_tasks:
             task.cancel()
         for task in background_tasks:
@@ -117,6 +165,22 @@ def _get_allowed_origins() -> list[str]:
         cors_origins.append(frontend_url)
 
     return [str(origin).rstrip("/") for origin in cors_origins]
+
+
+def _register_compatibility_routes(app: FastAPI) -> None:
+    @app.get("/health", tags=["health"])
+    def health_check() -> dict:
+        return {"status": "ok"}
+
+    @app.get("/api/stocks", tags=["stocks"])
+    async def stocks_compat() -> dict:
+        return {
+            "message": "Use /api/v1/stocks/symbols or /api/v1/stocks/bulk for stock data.",
+            "routes": {
+                "symbols": "/api/v1/stocks/symbols",
+                "bulk": "/api/v1/stocks/bulk?symbols=AAPL,MSFT",
+            },
+        }
 
 
 def create_app() -> FastAPI:
@@ -152,9 +216,11 @@ def create_app() -> FastAPI:
     )
     app.include_router(prediction_router, tags=["predictions"])
     app.include_router(websocket_router, tags=["prices"])
+    app.include_router(alerts_router, prefix="/api/v1", tags=["alerts"])
     app.include_router(prices_router, tags=["prices"])
     app.include_router(finnhub_ws_router, tags=["prices"])
     app.include_router(news_router, tags=["news"])
+    _register_compatibility_routes(app)
 
     return app
 

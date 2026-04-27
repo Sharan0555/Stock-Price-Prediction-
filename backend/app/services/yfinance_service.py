@@ -162,7 +162,13 @@ class YFinanceService:
 
         for candidate in candidates:
             c = candidate
-            series = await loop.run_in_executor(_executor, lambda: self._fetch_series_sync(c, start, end))
+            try:
+                series = await loop.run_in_executor(
+                    _executor,
+                    lambda: self._fetch_series_sync(c, start, end),
+                )
+            except Exception:
+                continue
             if series:
                 return series
         return []
@@ -185,7 +191,13 @@ class YFinanceService:
 
         for candidate in candidates:
             c = candidate
-            info = await loop.run_in_executor(_executor, lambda: self._get_company_info_sync(c))
+            try:
+                info = await loop.run_in_executor(
+                    _executor,
+                    lambda: self._get_company_info_sync(c),
+                )
+            except Exception:
+                continue
             if info:
                 return info
         return {}
@@ -276,10 +288,13 @@ class YFinanceService:
         loop = asyncio.get_event_loop()
         for candidate in candidates:
             c = candidate
-            quote = await loop.run_in_executor(
-                _executor,
-                lambda: self._get_quote_sync(c, is_inr=is_inr),
-            )
+            try:
+                quote = await loop.run_in_executor(
+                    _executor,
+                    lambda: self._get_quote_sync(c, is_inr=is_inr),
+                )
+            except Exception:
+                continue
             if quote and quote.get("c", 0.0) != 0.0:
                 _cache_set(symbol, quote)
                 return quote
@@ -316,7 +331,11 @@ class YFinanceService:
         # Use ThreadPoolExecutor for concurrent fetching
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {
-                executor.submit(self._get_quote_sync_cached, sym, is_inr): sym
+                executor.submit(
+                    self._get_quote_sync_cached,
+                    sym,
+                    is_inr=is_inr,
+                ): sym
                 for sym in symbols
             }
             for future in as_completed(futures):
@@ -334,4 +353,7 @@ class YFinanceService:
     async def get_multiple_quotes_async(self, symbols: list[str], *, is_inr: bool = False) -> dict[str, dict]:
         """Async wrapper for get_multiple_quotes."""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(_executor, self.get_multiple_quotes, symbols, is_inr)
+        return await loop.run_in_executor(
+            _executor,
+            lambda: self.get_multiple_quotes(symbols, is_inr=is_inr),
+        )
