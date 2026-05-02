@@ -131,6 +131,10 @@ class YFinanceService:
         df = ticker.history(start=start, end=end, interval="1d", auto_adjust=False)
         return self._history_to_ohlcv(df)
 
+    def get_historical_data(self, symbol: str, period: str = "30d"):
+        ticker = yf.Ticker(symbol)
+        return ticker.history(period=period, interval="1d", auto_adjust=False)
+
     def _fetch_series_sync(self, symbol: str, start: datetime, end: datetime) -> list[dict]:
         return [
             {"t": point["t"], "c": point["c"]}

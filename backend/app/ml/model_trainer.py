@@ -35,10 +35,12 @@ class ModelTrainer:
         self,
         closes: Sequence[float],
         volumes: Sequence[float] | None = None,
+        symbol: str | None = None,
     ) -> dict[str, float]:
         result = prediction_engine.predict_next_price(
             list(closes),
             list(volumes) if volumes is not None else None,
+            symbol=symbol,
         )
         # Round all values except signal which is a string
         rounded_result = {}

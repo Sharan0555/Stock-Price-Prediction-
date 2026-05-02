@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { memo } from "react";
 import AuthNav from "./auth-nav";
 import ThemeToggle from "@/components/theme-toggle";
+import NotificationBell from "@/components/alerts/NotificationBell";
 
 const HIDE_HEADER_ROUTES = ["/auth/login", "/auth/register"];
 
@@ -51,6 +52,7 @@ function AppHeader() {
           </Link>
         </nav>
         <div className="app-auth">
+          <NotificationBell />
           <ThemeToggle size="sm" />
           <AuthNav />
         </div>

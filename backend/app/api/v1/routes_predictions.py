@@ -21,9 +21,11 @@ from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
 
 from app.ml.inference import prediction_engine
+from app.ml.model_trainer import ModelTrainer
 
 
 router = APIRouter()
+_model_trainer = ModelTrainer()
 
 
 class PredictionRequestBody(BaseModel):
@@ -97,14 +99,23 @@ def predict_price(body: PredictionRequestBody = Body(...)) -> dict:
         cached["cached"] = True
         return cached
     try:
-        result = prediction_engine.predict_next_price(body.closes, symbol=body.symbol)
+        try:
+            result = _model_trainer.predict(body.closes, symbol=body.symbol)
+        except TypeError as exc:
+            if "unexpected keyword argument 'symbol'" not in str(exc):
+                raise
+            result = prediction_engine.predict_next_price(body.closes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    risk = _compute_risk_and_signal(body.closes, result["ensemble"], result.get("signal"))
+    risk = _model_trainer.compute_risk_profile(
+        body.closes,
+        result["ensemble"],
+        result.get("signal"),
+    )
     response = {
         "symbol": body.symbol.upper(),
         "predictions": result,
-        "risk": risk.model_dump(),
+        "risk": risk,
         "cached": False,
     }
     _cache_set(cache_key, response, ttl=300)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
@@ -9,11 +10,13 @@ from pydantic import BaseModel
 
 from app.services.alpha_vantage_service import AlphaVantageService
 from app.services.live_price_service import LivePriceService
+from app.services.local_data_service import LocalDataService
 from app.services.yfinance_service import YFinanceService
 
 
 router = APIRouter()
 _yfinance_service = YFinanceService()
+_local_data_service = LocalDataService()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -54,6 +57,11 @@ def get_live_price_service(request: Request) -> LivePriceService:
 
 def get_alpha_vantage_service(request: Request) -> AlphaVantageService:
     return request.app.state.alpha_vantage_service
+
+
+def _currency_for_symbol(symbol: str) -> str:
+    normalized = _normalize_symbol(symbol)
+    return "INR" if normalized.endswith((".NS", ".NSE", ".BO", ".BSE")) else "USD"
 
 
 async def _resolve_price(
@@ -97,7 +105,19 @@ async def _resolve_price(
             source="yfinance",
         )
 
-    return None
+    local_quote = _local_data_service.get_quote(normalized, _currency_for_symbol(normalized))
+    price = float(local_quote.get("c") or 0.0)
+    prev_close = float(local_quote.get("pc") or 0.0)
+    change_pct = ((price - prev_close) / prev_close) * 100 if prev_close else None
+    ts = int(datetime.now(timezone.utc).timestamp() * 1000)
+    return LivePriceResponse(
+        symbol=normalized,
+        price=price,
+        change_pct=round(change_pct, 2) if change_pct is not None else None,
+        volume=int(local_quote.get("v") or 0),
+        ts=ts,
+        source="local",
+    )
 
 
 @router.get("/stocks/live-price/{symbol}", response_model=LivePriceResponse)
@@ -109,11 +129,6 @@ async def get_live_price(
     ],
 ) -> LivePriceResponse:
     response = await _resolve_price(symbol, live_price_service, alpha_vantage_service)
-    if response is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No live price available for {_normalize_symbol(symbol)}.",
-        )
     return response
 
 
@@ -152,6 +167,7 @@ async def get_batch_prices(
 @router.websocket("/stocks/ws/{symbol}")
 async def stream_live_price(symbol: str, websocket: WebSocket) -> None:
     live_price_service: LivePriceService = websocket.app.state.live_price_service
+    alpha_vantage_service: AlphaVantageService = websocket.app.state.alpha_vantage_service
     normalized = _normalize_symbol(symbol)
     last_ts: int | None = None
     last_price: float | None = None
@@ -159,16 +175,17 @@ async def stream_live_price(symbol: str, websocket: WebSocket) -> None:
     await websocket.accept()
     try:
         while True:
-            payload = await live_price_service.get_price(normalized)
-            if payload:
-                current_price = payload.get("price")
-                current_ts = payload.get("ts")
-                if current_price != last_price or current_ts != last_ts:
-                    response = _coerce_live_response(payload, source="finnhub-ws")
-                    if response is not None:
-                        await websocket.send_json(response.model_dump())
-                        last_price = response.price
-                        last_ts = response.ts
+            response = await _resolve_price(
+                normalized,
+                live_price_service,
+                alpha_vantage_service,
+            )
+            current_price = response.price
+            current_ts = response.ts
+            if current_price != last_price or current_ts != last_ts:
+                await websocket.send_json(response.model_dump())
+                last_price = response.price
+                last_ts = response.ts
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         return

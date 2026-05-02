@@ -65,9 +65,7 @@ function getBackendUnavailableMessage(candidates: string[]): string {
 
 export function getApiBaseUrl(): string {
   const envBase = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
-  const url = envBase ? normalizeBase(envBase) : "http://localhost:8001";
-  console.log("[API Base URL]", url);
-  return url;
+  return envBase ? normalizeBase(envBase) : "http://localhost:8001";
 }
 
 export function getWebSocketBaseUrl(): string {
@@ -112,6 +110,11 @@ export function getApiBaseCandidates(): string[] {
   return candidates;
 }
 
+export function resolveApiUrl(path: string): string {
+  const endpoint = path.startsWith("/") ? path : `/${path}`;
+  return `${getApiBaseUrl()}${endpoint}`;
+}
+
 async function fetchWithTimeout(
   url: string,
   init?: RequestInit,
@@ -129,7 +132,6 @@ async function fetchWithTimeout(
   }
 }
 
-// DEPRECATED: This function is no longer used. All API calls now use direct fetch to http://localhost:8001
 export async function fetchWithApiFallback(
   path: string,
   init?: RequestInit,

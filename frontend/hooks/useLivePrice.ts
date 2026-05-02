@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 
-import { fetchJsonWithFallback, getApiBaseUrl } from "@/lib/api-base";
+import {
+  fetchJsonWithFallback,
+  getApiBaseUrl,
+  getWebSocketBaseUrl,
+} from "@/lib/api-base";
 
 export type LivePriceState = {
   currentSymbol?: string;
@@ -109,9 +113,9 @@ export function useLivePrice(symbol?: string): LivePriceState {
     const connect = () => {
       if (!active) return;
 
-      const wsBase = toWebSocketBase(getApiBaseUrl());
+      const wsBase = toWebSocketBase(getWebSocketBaseUrl());
       socket = new WebSocket(
-        `${wsBase}/api/v1/stocks/ws/${encodeURIComponent(symbol)}`,
+        `${wsBase}/api/v1/ws/prices/${encodeURIComponent(symbol)}`,
       );
 
       socket.onmessage = handleMessage;

@@ -6,5 +6,9 @@
   "sharanpatil630@gmail.com": {
     "email": "sharanpatil630@gmail.com",
     "password_hash": "$pbkdf2-sha256$29000$9j6HUGoNwVhrDaH03ntPSQ$a6TUfdEzXwopBXiGm0SGyEwt0cAQZmsahuZvog7XjsE"
+  },
+  "patilsharan231@gmail.com": {
+    "email": "patilsharan231@gmail.com",
+    "password_hash": "$pbkdf2-sha256$29000$1ToHgNBaC6EUgjDmvFdKqQ$5HkECrn/rgMh9USQM4.Lm1FdknqCCDYgG5SL1kj1c1o"
   }
 }

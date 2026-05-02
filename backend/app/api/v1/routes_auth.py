@@ -85,6 +85,12 @@ def login(body: LoginBody) -> dict:
             raise HTTPException(status_code=404, detail="User not found. Please register.")
         password_hash = str(user.get("password_hash", "")).strip()
         if not password_hash:
+            provider = str(user.get("provider", "")).strip().lower()
+            if provider == "google":
+                raise HTTPException(
+                    status_code=400,
+                    detail="This account uses Google sign-in. Please continue with Google.",
+                )
             raise HTTPException(
                 status_code=400,
                 detail="Password login is unavailable for this account.",

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Databases (optional for local dev; set in .env for full features)
     POSTGRES_DSN: str = Field(
-        default="postgresql+psycopg2://postgres:postgres@localhost:5432/stocks",
+        default="sqlite:///./stocks.db",
         validation_alias="POSTGRES_DSN",
     )
     MONGO_DSN: str = Field(

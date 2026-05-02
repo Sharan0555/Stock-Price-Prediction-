@@ -1,6 +1,10 @@
 "use client";
 
 import PredictionChart from "@/components/PredictionChart";
+import {
+  fetchJsonWithFallback,
+  fetchWithApiFallback,
+} from "@/lib/api-base";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -88,15 +92,13 @@ export default function StocksPage() {
         });
         if (query.trim()) params.set("q", query.trim());
 
-        console.log("Fetching stocks from:", `http://localhost:8001/api/v1/stocks/symbols?${params.toString()}`);
-        const res = await fetch(`http://localhost:8001/api/v1/stocks/symbols?${params.toString()}`);
-        console.log("Response status:", res.status);
+        const res = await fetchWithApiFallback(
+          `/api/v1/stocks/symbols?${params.toString()}`,
+        );
         if (!res.ok) throw new Error("Failed to load stocks");
         const json = await res.json() as SymbolsResp;
-        console.log("Stocks data received:", json);
         if (!cancelled) setData(json);
       } catch (e: unknown) {
-        console.error("Error loading stocks:", e);
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Failed to load stocks");
       } finally {
@@ -120,7 +122,7 @@ export default function StocksPage() {
   const fetchWithTimeout = useCallback(
     (path: string, ms: number) =>
       Promise.race<Response>([
-        fetch(`http://localhost:8001${path}`),
+        fetchWithApiFallback(path),
         new Promise<Response>((_, reject) =>
           setTimeout(() => reject(new Error("timeout")), ms),
         ),
@@ -251,9 +253,9 @@ export default function StocksPage() {
 
     async function loadPredictionSnapshot() {
       try {
-        const res = await fetch(`http://localhost:8001/api/v1/predictions/${encodeURIComponent(selectedSymbol)}?days=60`);
-        if (!res.ok) throw new Error("Failed to load prediction");
-        const snapshotResult = await res.json() as PredictionSnapshotResponse;
+        const snapshotResult = await fetchJsonWithFallback<PredictionSnapshotResponse>(
+          `/api/v1/predictions/${encodeURIComponent(selectedSymbol)}?days=60`,
+        );
         if (cancelled) return;
 
         setPredictionSnapshot(snapshotResult);

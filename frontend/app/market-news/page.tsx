@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchJsonWithFallback } from "@/lib/api-base";
 import { useState, useEffect } from "react";
 
 interface NewsItem {
@@ -29,17 +30,21 @@ export default function MarketNewsPage() {
   const [indicesData, setIndicesData] = useState<IndexItem[]>([]);
   const [sentiment, setSentiment] = useState<Sentiment | null>(null);
   const [newsLoading, setNewsLoading] = useState(true);
+  const [newsError, setNewsError] = useState<string | null>(null);
 
   // News — refresh every 5 minutes
   useEffect(() => {
     async function loadNews() {
       try {
         setNewsLoading(true);
-        const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/news`);
-        const data = await res.json();
+        setNewsError(null);
+        const data = await fetchJsonWithFallback<NewsItem[]>("/api/news");
         setNews(data);
-      } catch (e) { console.error(e); }
-      finally { setNewsLoading(false); }
+      } catch (e) {
+        setNewsError(e instanceof Error ? e.message : "Unable to load market news.");
+      } finally {
+        setNewsLoading(false);
+      }
     }
     loadNews();
     const i = setInterval(loadNews, 300_000);
@@ -50,10 +55,11 @@ export default function MarketNewsPage() {
   useEffect(() => {
     async function loadIndices() {
       try {
-        const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/indices`);
-        const data = await res.json();
+        const data = await fetchJsonWithFallback<IndexItem[]>("/api/indices");
         setIndicesData(data);
-      } catch (e) { console.error(e); }
+      } catch {
+        // Keep the last visible ticker data if refresh fails.
+      }
     }
     loadIndices();
     const i = setInterval(loadIndices, 30_000);
@@ -64,10 +70,11 @@ export default function MarketNewsPage() {
   useEffect(() => {
     async function loadSentiment() {
       try {
-        const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/sentiment`);
-        const data = await res.json();
+        const data = await fetchJsonWithFallback<Sentiment>("/api/sentiment");
         setSentiment(data);
-      } catch (e) { console.error(e); }
+      } catch {
+        // Keep the last visible sentiment block if refresh fails.
+      }
     }
     loadSentiment();
     const i = setInterval(loadSentiment, 900_000);
@@ -216,8 +223,12 @@ export default function MarketNewsPage() {
               ) : news.length === 0 ? (
                 <div className="flex-1 flex flex-col gap-4">
                   <div className="flex-1 bg-white border border-[var(--border)] rounded-lg p-6 flex flex-col justify-center dark:bg-gray-800 dark:border-gray-600">
-                    <div className="text-lg font-semibold text-[var(--ink)] mb-2 dark:text-gray-100">No news available</div>
-                    <p className="text-sm text-[var(--ink-soft)] dark:text-gray-400">Check back later for market updates.</p>
+                    <div className="text-lg font-semibold text-[var(--ink)] mb-2 dark:text-gray-100">
+                      {newsError ? "News temporarily unavailable" : "No news available"}
+                    </div>
+                    <p className="text-sm text-[var(--ink-soft)] dark:text-gray-400">
+                      {newsError ?? "Check back later for market updates."}
+                    </p>
                   </div>
                   {/* Placeholder articles to fill space */}
                   {[1, 2, 3].map((i) => (

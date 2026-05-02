@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+# TensorFlow is mocked here because importing app.main triggers the LSTM model
+# loader, which requires a compatible TF installation. Alert system tests don't
+# need actual ML inference -- they mock the prediction service directly.
 import sys
+from unittest.mock import MagicMock
+sys.modules['tensorflow'] = MagicMock()
+sys.modules['tensorflow.keras'] = MagicMock()
+
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

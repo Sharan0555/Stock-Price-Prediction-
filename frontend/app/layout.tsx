@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import AuthGate from "./auth-gate";
 import AppHeader from "./app-header";
 import PageTransition from "./page-transition";
+import { PopularStocksProvider } from "@/components/popular-stocks-provider";
 import { ThemeProvider } from "@/lib/theme-context";
 import "./globals.css";
 
@@ -19,12 +20,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider>
-          <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
-            <AuthGate>
-              <AppHeader />
-              <PageTransition>{children}</PageTransition>
-            </AuthGate>
-          </div>
+          <PopularStocksProvider>
+            <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
+              <AuthGate>
+                <AppHeader />
+                <PageTransition>{children}</PageTransition>
+              </AuthGate>
+            </div>
+          </PopularStocksProvider>
         </ThemeProvider>
       </body>
     </html>

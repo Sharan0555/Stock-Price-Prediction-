@@ -7,6 +7,7 @@ import SignalBanner from "@/components/SignalBanner";
 import StockMetricCards from "@/components/StockMetricCards";
 import StrategyCard from "@/components/StrategyCard";
 import { SkeletonMetricCards, SkeletonChart, SkeletonPrediction } from "@/components/skeleton";
+import AlertPanel from "@/components/alerts/AlertPanel";
 import { fetchJsonWithFallback } from "@/lib/api-base";
 import { apiCache } from "@/lib/api-cache";
 import { Search, X, Loader2 } from "lucide-react";
@@ -55,6 +56,15 @@ type PredictionResponse = {
     last_price: number;
     change_pct: number;
   };
+};
+
+type PredictionSnapshotResponse = {
+  symbol: string;
+  history_source: string;
+  quote: QuoteResponse["quote"];
+  history: Array<{ t: number; c: number; v?: number }>;
+  predictions: PredictionResponse["predictions"];
+  risk: PredictionResponse["risk"];
 };
 
 type StrategyPlan =
@@ -249,69 +259,43 @@ export default function PredictionPage() {
     if (requestId !== requestIdRef.current) return;
     setPredictionError(null);
     setPrediction(null);
+    setQuote(null);
+    setHistory(null);
 
     try {
       const normalized = normalizeSymbol(item.symbol);
-      
-      // Check cache for quote and history
-      const quoteCacheKey = `quote:${normalized}`;
-      const historyCacheKey = `history:${normalized}`;
-      
-      let quoteData = apiCache.get<QuoteResponse>(quoteCacheKey);
-      let historyData = apiCache.get<HistoryResponse>(historyCacheKey);
 
-      const promises: Promise<void>[] = [];
+      const snapshotCacheKey = `prediction-snapshot:${normalized}`;
+      let snapshotData = apiCache.get<PredictionSnapshotResponse>(snapshotCacheKey);
 
-      if (!quoteData) {
-        promises.push(
-          fetchJsonWithFallback<QuoteResponse>(`/api/v1/stocks/${encodeURIComponent(normalized)}/quote`)
-            .then(data => {
-              quoteData = data;
-              apiCache.set(quoteCacheKey, data);
-            })
-            .catch(() => {})
+      if (!snapshotData) {
+        snapshotData = await fetchJsonWithFallback<PredictionSnapshotResponse>(
+          `/api/v1/predictions/${encodeURIComponent(normalized)}?days=60`,
         );
+        apiCache.set(snapshotCacheKey, snapshotData);
       }
-
-      if (!historyData) {
-        promises.push(
-          fetchJsonWithFallback<HistoryResponse>(`/api/v1/stocks/${encodeURIComponent(normalized)}/history?days=30`)
-            .then(data => {
-              historyData = data;
-              apiCache.set(historyCacheKey, data);
-            })
-            .catch(() => {})
-        );
-      }
-
-      await Promise.all(promises);
 
       if (requestId !== requestIdRef.current) return;
 
-      if (quoteData) setQuote(quoteData);
-      if (historyData) {
-        setHistory(historyData);
-        const closes = (historyData.series || []).map((point) => point.c);
-        const volumes = (historyData.series || []).map((point) => point.v || 0).filter(v => v > 0);
-        
-        if (closes.length >= 2) {
-          // Fetch legacy prediction
-          try {
-            const predRes = await fetchJsonWithFallback<PredictionResponse>("/api/v1/predictions", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ symbol: normalized, closes }),
-            });
-            setPrediction(predRes);
-          } catch {
-            setPrediction(null);
-            setPredictionError("Prediction model is unavailable right now.");
-          }
-        } else {
-          setPrediction(null);
-          setPredictionError("Not enough history to generate prediction.");
-        }
+      if (!snapshotData) {
+        setPredictionError("Prediction model is unavailable right now.");
+        return;
       }
+
+      setQuote({
+        symbol: snapshotData.symbol,
+        quote: snapshotData.quote,
+      });
+      setHistory({
+        symbol: snapshotData.symbol,
+        source: snapshotData.history_source,
+        series: snapshotData.history,
+      });
+      setPrediction({
+        symbol: snapshotData.symbol,
+        predictions: snapshotData.predictions,
+        risk: snapshotData.risk,
+      });
     } catch {
       setPredictionError("Failed to load stock details.");
     }
@@ -719,6 +703,10 @@ export default function PredictionPage() {
                 </div>
               </div>
             </section>
+
+            {currentSymbol && (
+              <AlertPanel symbol={currentSymbol} className="my-6" />
+            )}
           </>
         )}
       </main>

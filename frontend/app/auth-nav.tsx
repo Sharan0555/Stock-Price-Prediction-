@@ -39,6 +39,27 @@ export default function AuthNav() {
     };
   }, [menuOpen]);
 
+  // Before mount: render placeholder that matches server output
+  if (!isMounted) {
+    return (
+      <>
+        <Link
+          className="font-semibold text-[var(--ink)] transition hover:text-[var(--accent-strong)]"
+          href="/auth/login"
+        >
+          Login
+        </Link>
+        <Link
+          className="font-semibold text-[var(--ink)] transition hover:text-[var(--accent-strong)]"
+          href="/auth/register"
+        >
+          Register
+        </Link>
+      </>
+    );
+  }
+
+  // After mount: render auth-aware UI
   if (!isAuthed) {
     return (
       <>
@@ -84,7 +105,7 @@ export default function AuthNav() {
           ▾
         </span>
       </button>
-      {isMounted && menuOpen && (
+      {menuOpen && (
         <div className="auth-dropdown" role="menu">
           <div className="auth-dropdown__name">{displayName}</div>
           <div className="auth-email">{userEmail ?? "Signed in"}</div>

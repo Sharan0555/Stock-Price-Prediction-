@@ -23,11 +23,31 @@ def test_prediction_snapshot_endpoint(client) -> None:
     original_quote = prediction_router._yfinance_service.get_quote
     original_live = client.app.state.live_price_service.get_price
     original_alpha = client.app.state.alpha_vantage_service.get_quote
+    original_predict = prediction_router._model_trainer.predict
+    original_risk = prediction_router._model_trainer.compute_risk_profile
+
+    captured: dict[str, str | None] = {"symbol": None}
 
     prediction_router._yfinance_service.get_daily_series = AsyncMock(return_value=history)
     prediction_router._yfinance_service.get_quote = AsyncMock(return_value=quote)
     client.app.state.live_price_service.get_price = AsyncMock(return_value=None)
     client.app.state.alpha_vantage_service.get_quote = AsyncMock(return_value=None)
+
+    def fake_predict(closes, volumes=None, symbol=None):
+        captured["symbol"] = symbol
+        return {"lstm": 159.5, "ensemble": 162.0, "signal": "BUY"}
+
+    def fake_risk(closes, predicted, signal=None):
+        return {
+            "score": 42.0,
+            "level": "medium",
+            "signal": signal or "HOLD",
+            "last_price": round(float(closes[-1]), 2),
+            "change_pct": 1.25,
+        }
+
+    prediction_router._model_trainer.predict = fake_predict
+    prediction_router._model_trainer.compute_risk_profile = fake_risk
 
     try:
         response = client.get("/api/v1/predictions/AAPL?days=60")
@@ -36,6 +56,8 @@ def test_prediction_snapshot_endpoint(client) -> None:
         prediction_router._yfinance_service.get_quote = original_quote
         client.app.state.live_price_service.get_price = original_live
         client.app.state.alpha_vantage_service.get_quote = original_alpha
+        prediction_router._model_trainer.predict = original_predict
+        prediction_router._model_trainer.compute_risk_profile = original_risk
 
     assert response.status_code == 200
     data = response.json()
@@ -43,6 +65,7 @@ def test_prediction_snapshot_endpoint(client) -> None:
     assert len(data["history"]) == 60
     assert "predictions" in data
     assert "indicators" in data
+    assert captured["symbol"] == "AAPL"
 
 
 def test_price_websocket_endpoint(client) -> None:

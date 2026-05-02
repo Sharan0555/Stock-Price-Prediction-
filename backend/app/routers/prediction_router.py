@@ -291,8 +291,12 @@ async def get_prediction_snapshot(
             detail=f"Not enough history to build a prediction for {normalized}.",
         )
 
-    predictions = _model_trainer.predict(closes)
-    risk = _model_trainer.compute_risk_profile(closes, predictions["ensemble"], predictions.get("signal"))
+    predictions = _model_trainer.predict(closes, symbol=normalized)
+    risk = _model_trainer.compute_risk_profile(
+        closes,
+        predictions["ensemble"],
+        predictions.get("signal"),
+    )
     indicators = _feature_engineering.summarize_indicators(history)
 
     return PredictionSnapshotResponse(

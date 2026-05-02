@@ -2,7 +2,7 @@
 
 export default function PortfolioPage() {
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)] p-8">
+    <div className="p-8">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">Portfolio</h1>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
