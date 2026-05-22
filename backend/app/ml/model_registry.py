@@ -19,15 +19,29 @@ def save(ticker: str):
     entry = _registry.get(t)
     if not entry:
         return
-    entry['model'].save(MODELS_DIR / f'{t}.keras')
-    with open(MODELS_DIR / f'{t}_scalers.json', 'w') as f:
-        json.dump(entry['scalers'], f)
-    with open(MODELS_DIR / f'{t}_cv.json', 'w') as f:
-        json.dump(entry['cv_scores'], f)
-    logger.info(f'Saved model for {t}')
+    try:
+        entry['model'].save(MODELS_DIR / f'{t}.keras')
+        with open(MODELS_DIR / f'{t}_scalers.json', 'w') as f:
+            json.dump(entry['scalers'], f)
+        with open(MODELS_DIR / f'{t}_cv.json', 'w') as f:
+            json.dump(entry['cv_scores'], f)
+        logger.info(f'Saved model for {t}')
+    except Exception as e:
+        logger.error(f'Failed to save {t}: {e}')
 
 def load_all():
-    import tensorflow as tf
+    try:
+        import tensorflow as tf
+        TF_AVAILABLE = True
+    except ImportError:
+        tf = None
+        TF_AVAILABLE = False
+        logger.warning('TensorFlow not available, skipping model loading')
+
+    if not TF_AVAILABLE:
+        logger.info('No TensorFlow — skipping .keras model loading')
+        return
+
     for keras_file in MODELS_DIR.glob('*.keras'):
         t = keras_file.stem
         scalers_file = MODELS_DIR / f'{t}_scalers.json'
