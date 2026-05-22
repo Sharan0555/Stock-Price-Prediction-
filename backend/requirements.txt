@@ -14,8 +14,8 @@ passlib[bcrypt]
 pydantic
 pydantic-settings
 numpy
-tensorflow
-pandas
+tensorflow==2.15.0
+pandas==2.1.4
 torch
 transformers
 alembic
